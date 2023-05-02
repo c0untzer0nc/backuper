@@ -12,6 +12,7 @@ from cryptography.fernet import Fernet
 token = '6197644867:AAGqBg-SFQc8JAAr6zA6duVv_F-bdRiq_Gg'
 photo = 'settings_photo.ini'
 mssql = 'settings_mssql.ini'
+а тут абракадабра
 location = os.getcwd()
 
 #source_dir = location + '/' + mssql_db + '/'
