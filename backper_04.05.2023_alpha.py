@@ -74,12 +74,24 @@ def gui_conf_photo():
         if event in (None, 'Exit', 'Выход'):
             break
         if event == 'Сохранить':
-            global src, dst, ftp, ftp_u, ftp_p, ftp_root, see, sel, chat_id, cp, name_obj
+            global src, dst, ftp, ftp_u, ftp_p, ftp_root, see, sel, chat_id, cp, name_obj, cipher_ke
             src = values[0]
             dst = values[1]
             ftp = values[2]
-            ftp_u = values[3]
-            ftp_p = values[4]
+            ftp_us = values[3]
+            ftp_ub = ftp_us.encode(encoding="utf-8", errors="strict")
+            cipher_key = Fernet.generate_key()
+            cipher_ke = cipher_key.decode(encoding="utf-8", errors="strict")
+            cipher = Fernet(cipher_key)
+            ftp_ue = cipher.encrypt(ftp_ub)
+            ftp_u = ftp_ue.decode(encoding="utf-8", errors="strict")
+            ftp_ps = values[4]
+            ftp_pb = ftp_ps.encode(encoding="utf-8", errors="strict")
+#            cipher_key = Fernet.generate_key()
+#            cipher_ke = cipher_key.decode(encoding="utf-8", errors="strict")
+#            cipher = Fernet(cipher_key)
+            ftp_pe = cipher.encrypt(ftp_pb)
+            ftp_p = ftp_pe.decode(encoding="utf-8", errors="strict")
             ftp_root = values[5]
             cp = values[6]
             see = values[7]
@@ -122,12 +134,24 @@ def gui_conf_mssql():
             break
         else:
             if event == 'Сохранить':
-                global mssqls, mssql_db, ftp, ftp_u, ftp_p, ftp_root, chat_id, cp, name_obj
+                global mssqls, mssql_db, ftp, ftp_u, ftp_p, ftp_root, chat_id, cp, name_obj, cipher_ke
                 mssqls = values[0]
                 mssql_db = values[1]
                 ftp = values[2]
-                ftp_u = values[3]
-                ftp_p = values[4]
+                ftp_us = values[3]
+                ftp_ub = ftp_us.encode(encoding="utf-8", errors="strict")
+                cipher_key = Fernet.generate_key()
+                cipher_ke = cipher_key.decode(encoding="utf-8", errors="strict")
+                cipher = Fernet(cipher_key)
+                ftp_ue = cipher.encrypt(ftp_ub)
+                ftp_u = ftp_ue.decode(encoding="utf-8", errors="strict")
+                ftp_ps = values[4]
+                ftp_pb = ftp_ps.encode(encoding="utf-8", errors="strict")
+                #            cipher_key = Fernet.generate_key()
+                #            cipher_ke = cipher_key.decode(encoding="utf-8", errors="strict")
+                #            cipher = Fernet(cipher_key)
+                ftp_pe = cipher.encrypt(ftp_pb)
+                ftp_p = ftp_pe.decode(encoding="utf-8", errors="strict")
                 ftp_root = values[5]
                 cp = values[6]
                 chat_id = values[7]
@@ -148,6 +172,7 @@ def create_Config(path):
         config.add_section("Settings")
         config.add_section("FTP")
         config.add_section("Telegram")
+        config.set("Settings", "cipher", (cipher_ke))
         config.set("Settings", "name_obj", name_obj)
         config.set("Telegram", "chat_id", chat_id)
         config.set("FTP", "ftp_server", ftp)
@@ -164,6 +189,7 @@ def create_Config(path):
         config.add_section("Settings")
         config.add_section("FTP")
         config.add_section("Telegram")
+        config.set("Settings", "cipher", (cipher_ke))
         config.set("Settings", "name_obj", name_obj)
         config.set("Telegram", "chat_id", chat_id)
         config.set("FTP", "ftp_server", ftp)
@@ -187,8 +213,19 @@ def read_conf(path):
         mssqls = config.get("Settings", "mssqls")
         mssql_db = config.get("Settings", "mssql_db")
         ftp = config.get("FTP", "ftp_server")
-        ftp_u = config.get("FTP", "ftp_username")
-        ftp_p = config.get("FTP", "ftp_pass")
+        cipher_ke = config.get("Settings", "cipher")
+        ftp_us = config.get("FTP", "ftp_username")
+        cipher_key = cipher_ke.encode(encoding="utf-8", errors="strict")
+        cipher = Fernet(cipher_key)
+        ftp_ud = ftp_us.encode(encoding="utf-8", errors="strict")
+        ftp_ub = cipher.decrypt(ftp_ud)
+        ftp_u = ftp_ub.decode(encoding="utf-8", errors="strict")
+        ftp_ps = config.get("FTP", "ftp_pass")
+        #cipher_key = cipher_ke.encode(encoding="utf-8", errors="strict")
+        #cipher = Fernet(cipher_key)
+        ftp_pd = ftp_ps.encode(encoding="utf-8", errors="strict")
+        ftp_pb = cipher.decrypt(ftp_pd)
+        ftp_p = ftp_pb.decode(encoding="utf-8", errors="strict")
         ftp_root = config.get("FTP", "ftp_root")
         cp = config.get("FTP", "cp")
         chat_id = config.get("Telegram", "chat_id")
@@ -199,15 +236,26 @@ def read_conf(path):
         src = config.get("Settings", "src_dir") + '/'
         dst = config.get("Settings", "dst_dir") + '/'
         ftp = config.get("FTP", "ftp_server")
-        ftp_u = config.get("FTP", "ftp_username")
-        ftp_p = config.get("FTP", "ftp_pass")
+        cipher_ke = config.get("Settings", "cipher")
+        ftp_us = config.get("FTP", "ftp_username")
+        cipher_key = cipher_ke.encode(encoding="utf-8", errors="strict")
+        cipher = Fernet(cipher_key)
+        ftp_ud = ftp_us.encode(encoding="utf-8", errors="strict")
+        ftp_ub = cipher.decrypt(ftp_ud)
+        ftp_u = ftp_ub.decode(encoding="utf-8", errors="strict")
+        ftp_ps = config.get("FTP", "ftp_pass")
+        #cipher_key = cipher_ke.encode(encoding="utf-8", errors="strict")
+        #cipher = Fernet(cipher_key)
+        ftp_pd = ftp_ps.encode(encoding="utf-8", errors="strict")
+        ftp_pb = cipher.decrypt(ftp_pd)
+        ftp_p = ftp_pb.decode(encoding="utf-8", errors="strict")
         ftp_root = config.get("FTP", "ftp_root")
         cp = config.get("FTP", "cp")
         see = config.get("Settings", "days_before")
         sel = int(see)
         chat_id = config.get("Telegram", "chat_id")
 
-    # Создаем локальную копию
+
 def copylocal(folder1, folder2):
     global flcount, dlcount
     tod = datetime.datetime.now()
@@ -274,8 +322,8 @@ def copylocal(folder1, folder2):
                             print('файл существует: ' + z)
                 return folder2
             makedir(folder2)
+    # Создаем локальную копию
 
-    # Получаем дату для MSSQL_DB
 def date_time():
     global tod, ymd, y, m, mmm, mm, D, H, M, data_full, yMD, yMd
     tod = datetime.datetime.now()
@@ -294,8 +342,8 @@ def date_time():
     DD = a.day
     yMD = YY + '-' + m + '-' + str(DD)
     yMd = YY + '-' + str(mmm) + '-' + str(DD)
+    # Получаем дату для MSSQL_DB
 
-    # Копируем MSSQL DB
 def copy_mssql():
     global fname, fdate
     cnxn = pyodbc.connect('DRIVER={SQL Server};SERVER='+mssqls+';Trusted_Connection=yes')
@@ -317,28 +365,16 @@ def copy_mssql():
             pass
         cursor.close()
         cnxn.close()
-        
-    # Архивируем MSSQL DB
+    # Копируем MSSQL DB
+
 def zipper():
     archive_name = data_full + '-' + mssql_db
     source_dir = location + '/' + mssql_db + '/'
     shutil.make_archive(archive_name, format="zip", root_dir=source_dir)
 
-    # Вычисляем даты
-def datetime_fix():
-    global w, r, y, m, d, n_month
-    w = datetime.date.today()
-    r = str(w)
-    y = str(w.year)
-    m = str(w.month)
-    d = str(w.day)
-    templist = [0, 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь',
-                'Ноябрь', 'Декабрь']
-    n_month = templist[w.month]
+    # Архивируем MSSQL DB
 
-    # класс загрузки папок и файлов на ftp
 class FtpUploadFolder():
-    #global localedir
     def __init__(self, server, user, passwd, catalog):
         self.fcount = 0
         self.dcount = 0
@@ -348,9 +384,6 @@ class FtpUploadFolder():
         self.ftp.storbinary('STOR ' + new_name, open(path_name, 'rb'))
     def uploadDir(self, localdir):
         tod = datetime.datetime.now()
-        #localdir = localedir
-        #print(localdir)
-        #print(ftp_root)
         for i in range(0, sel):
             templist = [0, 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
             D = datetime.timedelta(days = i)
@@ -365,14 +398,10 @@ class FtpUploadFolder():
             mm = templist[mmm]
             B = a.strftime('%d')
             localdir = dst
-            #print(localedir)
-            #print(ftp_root)
             ftp_root2 = ftp_root
             localsrc = os.listdir(localdir)
             self.ftp.cwd(ftp_root2)
             ftpsrc = self.ftp.nlst()
-            #print(localdir)
-            #print(ftp_root2)
             if not Y in localsrc:
                 pass
             else:
@@ -478,17 +507,6 @@ class FtpUploadFolder():
             ftp_root2 = ftp_root2 + mm + '/'
             self.ftp.cwd(ftp_root2)
             ftpsrc = self.ftp.nlst()
-        # if YMD in ftpsrc:
-        #     ftp_root2 = ftp_root2 + YMD + '/'
-        #     self.ftp.cwd(ftp_root2)
-        #     ftpsrc = self.ftp.nlst()
-        # else:
-        #     self.ftp.mkd(YMD)
-        #     print('Папка на FTP создана', YDM)
-        #     self.dcount += 1
-        #     ftp_root2 = ftp_root2 + YDM + '/'
-        #     self.ftp.cwd(ftp_root2)
-        #     ftpsrc = self.ftp.nlst()
         for localname in localfiles:
             localpath = os.path.join(localdir, localname)
             if not os.path.isdir(localpath):
@@ -506,20 +524,15 @@ class FtpUploadFolder():
         fcount = self.fcount
         dcount = self.dcount
         print('uploaded files: ', self.fcount)
-        #print('uploaded folders: ', self.dcount)
+    # класс загрузки папок и файлов на ftp
 
-    # mssql
 def mssql_upload():
     global localedir
     date_time()
     if mssql_db in location:
         shutil.rmtree(location + '\\' + mssql_db)
-        #mssql_upload()
     else:
-        #shutil.rmtree(location + '\\' + mssql_db)
         os.mkdir(location + '\\' + mssql_db)
-        #os.mkdir(location + '\\' + mssql_db + '\\' + str(yMD))
-        #print(os.getcwd())
         print('Создаем локальную копию')
         copy_mssql()
         print('Архивируем')
@@ -527,9 +540,6 @@ def mssql_upload():
         print('Убираемся')
         os.remove(location + '\\' + mssql_db + '\\' + mssql_db + '.bak')
         shutil.move(fdate + '-' + mssql_db + '.zip', location + '\\' + mssql_db + '\\' + fdate + '-' + mssql_db + '.zip')
-        #os.remove(fname)
-        #fdir = location + '\\' + mssql_db + '\\'
-        #shutil.rmtree(location + '/' + mssql_db)
         localedir = location + '\\' + mssql_db + '\\'
         print('Запускаю копирование на FTP')
         f = FtpUploadFolder(ftp, ftp_u, ftp_p, ftp_root)
@@ -537,7 +547,6 @@ def mssql_upload():
         f.close()
         print('Закончил копирование на FTP. Собираю монатки и сваливаю')
         shutil.rmtree(location + '//' + mssql_db)
-        #os.remove(fdate + '-' + mssql_db + '.zip')
         bot = telebot.TeleBot(token)
         bot.send_message(chat_id, "Бэкап БД MSSQL на обьекте " + name_obj + " закончен. Результат: " + ' На FTP скопированно новых файлов: ' + str(fcount))
 
@@ -563,16 +572,13 @@ def check_conf():
     global path#, cp
     if photo in os.listdir():
         path = photo
-        #cp = 'cp1251'
         print('Фото')
         read_conf(path)
         photo_upload()
     else:
         if mssql in os.listdir():
             path = mssql
-            #cp = 'utf-8'
             print('MS SQL')
-            #print(path)
             read_conf(path)
             mssql_upload()
         else:
