@@ -18,7 +18,7 @@ ftp_1c = 'settings_1c_ftp.ini'
 local_1c = 'settings_1c_local.ini'
 location = os.getcwd()
 er_gui = 'Что то не так'
-process_name = "1c8v.exe"
+process_name = "1cv8s.exe"
 command = "taskkill /t /F /IM "
 killproc = command + process_name
 src = 0
@@ -267,7 +267,7 @@ def gui_conf_1c_ftp():
     layout = [[sg.VPush()],
               [sg.vcenter(sg.Text('Папка откуда изначально брать')), sg.InputText(tooltip='Откуда копировать'),
                sg.FolderBrowse('Обзор')],
-              [sg.vcenter(sg.Text('Папка куда копировать')), sg.Push(), sg.InputText(tooltip='Локальная папка архива'),
+              [sg.vcenter(sg.Text('Временная папка')), sg.Push(), sg.InputText(tooltip='Временная папка'),
                sg.FolderBrowse('Обзор')],
               [sg.vcenter(sg.Text('ftp сервер')), sg.Push(), sg.InputText(tooltip='Адрес сервера FTP')],
               [sg.vcenter(sg.Text('ftp login')), sg.Push(), sg.InputText(tooltip='Пользователь сервера FTP')],
@@ -311,8 +311,8 @@ def gui_conf_1c_ftp():
             ftp_p = ftp_pe.decode(encoding="utf-8", errors="strict")
             ftp_root = values[5]
             cp = values[6]
-            chat_id = values[8]
-            name_obj = values[9]
+            chat_id = values[7]
+            name_obj = values[8]
             path = ftp_1c
             window.close()
             create_Config(path)
@@ -563,7 +563,7 @@ def process_exists(process_name):
         os.system(killproc)
         if process_name in progs:
             process_exists(process_name)
-    return process_name
+    #return process_name
 
 # Создаем локальную копию
 def copylocal(folder1, folder2):
@@ -828,6 +828,67 @@ class FtpUploadFolder():
                     self.uploadOne(localname, localpath)
                     self.fcount += 1
 
+    def upload_1c(self, localdir):
+        tod = datetime.datetime.now()
+        templist = [0, 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
+        a = tod
+        ymd = a.strftime('%Y-%m-%d')
+        Y = a.strftime('%Y' + 'г')
+        M = a.strftime('%m')
+        mmm = a.month
+        DD = a.day
+        YY = a.strftime('%Y')
+        yMd = YY + '-' + str(mmm) + '-' + str(DD)
+        mm = templist[mmm]
+        B = a.strftime('%d')
+        localdir = dst
+        ftp_root2 = ftp_root
+        localsrc = os.listdir(localdir)
+        self.ftp.cwd(ftp_root2)
+        ftpsrc = self.ftp.nlst()
+        if not Y in localsrc:
+            pass
+        else:
+            localdir = localdir + Y + '/'
+            localfiles = os.listdir(localdir)
+        if not mm in localfiles:
+            pass
+        else:
+            localdir = localdir + mm + '/'
+            localfiles = os.listdir(localdir)
+            ftpsrc = self.ftp.nlst()
+        if Y in ftpsrc:
+            ftp_root2 = ftp_root2 + Y + '/'
+            self.ftp.cwd(ftp_root2)
+            ftpsrc = self.ftp.nlst()
+        else:
+            self.ftp.mkd(Y)
+            print('Папка на FTP создана', Y)
+            self.dcount += 1
+            ftp_root2 = ftp_root2 + Y + '/'
+            self.ftp.cwd(ftp_root2)
+            ftpsrc = self.ftp.nlst()
+        if mm in ftpsrc:
+            ftp_root2 = ftp_root2 + mm + '/'
+            self.ftp.cwd(ftp_root2)
+            ftpsrc = self.ftp.nlst()
+        else:
+            self.ftp.mkd(mm)
+            print('Папка на FTP создана', mm)
+            self.dcount += 1
+            ftp_root2 = ftp_root2 + mm + '/'
+            self.ftp.cwd(ftp_root2)
+            ftpsrc = self.ftp.nlst()
+        for localname in localfiles:
+            localpath = os.path.join(localdir, localname)
+            if not os.path.isdir(localpath):
+                if localname in self.ftp.nlst():
+                    print("файл на FTP существует " + localname)
+                else:
+                    print('файл на FTP загружен', localname)
+                    self.uploadOne(localname, localpath)
+                    self.fcount += 1
+
         
     def close(self):
         self.ftp.quit()
@@ -917,20 +978,28 @@ def photo_local_upload():
 def ftp_1c_upload():
     if ftp_1c in os.listdir():
         process_exists(process_name)
-        print('Создаем локальную копию')
-        copylocal(src, dst)
+        date_time()
+        archive_name = data_full
+        print('Архивируем')
+        shutil.make_archive(archive_name, format="zip", root_dir=src)
+        #print('Создаем локальную копию')
+        if not y in os.listdir(dst):
+            os.mkdir(dst + '/' + y)
+        if not mm in os.listdir(dst + '/' + y):
+            os.mkdir(dst + '/' + y + '/' + mm)
+        shutil.move(archive_name + '.zip', dst + '/' + y + '/' + mm + '/' + archive_name + '.zip')
         print('Запускаю копирование на FTP')
         f = FtpUploadFolder(ftp, ftp_u, ftp_p, ftp_root)
-        f.uploadDir(dst)
+        dst_new = dst + '/' + y + '/' + mm
+        f.upload_1c(dst_new)
         f.close()
+        shutil.rmtree(dst + '/' + y)
         print('Закончил копирование на FTP. Собираю монатки и сваливаю')
         bot = telebot.TeleBot(token)
         bot.send_message(chat_id,
                          "Бэкап 1C на обьекте " + name_obj +
-                         " закончен. Результат: Локально создано новых папок: " +
-                         str(dlcount) + " Локально скопированно новых файлов: " +
-                         str(flcount) + " На FTP созданно новых папок: " + str(dcount) +
-                         ' На FTP скопированно новых файлов: ' + str(fcount))
+                         " закончен. Результат: На FTP созданно новых папок: " + str(dcount) +
+                         " На FTP скопированно новых файлов: " + str(fcount))
 
 # выгрузка 1C локально
 def local_1c_upload():
@@ -949,10 +1018,7 @@ def local_1c_upload():
         print('Закончил копирование. Собираю монатки и сваливаю')
         bot = telebot.TeleBot(token)
         bot.send_message(chat_id,
-                         "Бэкап 1C на обьекте " + name_obj +
-                         " закончен. Результат: Локально создано новых папок: " + str(
-                             dlcount) + " Локально скопированно новых файлов: " + str(
-                             flcount))
+                         "Бэкап 1C на обьекте " + name_obj + " закончен.")
 
 # Проверка файла конфигурации
 def check_conf():
