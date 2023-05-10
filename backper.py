@@ -6,15 +6,21 @@ import datetime
 import ftplib
 import telebot
 import pyodbc
+import subprocess
 from cryptography.fernet import Fernet
 
-#os.chdir('D:/')
 token = '6197644867:AAGqBg-SFQc8JAAr6zA6duVv_F-bdRiq_Gg'
-photo = 'settings_photo.ini'
-mssql = 'settings_mssql.ini'
+photo_ftp = 'settings_photo_ftp.ini'
+photo_local = 'settings_photo_local.ini'
+mssql_ftp = 'settings_mssql_ftp.ini'
+mssql_local = 'settings_mssql_local.ini'
+ftp_1c = 'settings_1c_ftp.ini'
+local_1c = 'settings_1c_local.ini'
 location = os.getcwd()
-
-#source_dir = location + '/' + mssql_db + '/'
+er_gui = 'Что то не так'
+process_name = "1c8v.exe"
+command = "taskkill /t /F /IM "
+killproc = command + process_name
 src = 0
 dst = 0
 see = 0
@@ -26,53 +32,70 @@ dlcount = 0
 fcount = 0
 dcount = 0
 
-    # Графический интерфейс
+# Графический интерфейс
 def gui_conf():
     sg.theme('Gray Gray Gray')
-    layout = [
-        [sg.Text('Что планируем копировать?')],
-        [sg.Submit('Photo'), sg.Submit('MS SQL DB'), sg.Submit('Mysql DB'), sg.Submit('1С ВесыСофт'), sg.Cancel('Выход'), sg.Text('by c0unt_zer0_nc')]
+    layout = [[sg.VPush()],
+        [sg.Push(), sg.Text('Что планируем копировать?'), sg.Push()],
+        [sg.Push(), sg.Submit('Photo на FTP'), sg.Submit('MS SQL DB на FTP'), sg.Submit('Mysql DB на FTP'), sg.Submit('1С на FTP'), sg.Push()],
+        [sg.Submit('Photo локально'), sg.Submit('MS SQL DB локально'), sg.Submit('1С локально'), sg.Push()],
+        [sg.Cancel('Выход'), sg.Push(), sg.Text('by c0unt_zer0_nc')]
     ]
-    #global windows
-    window = sg.Window('Создание файла конфигурации для бэкапера', layout)
-    while True:                             
-        event, values = window.read()
-        if event == 'Выход':
-            window.close()
-        if event == window.close():
-            break
-        if event == 'Photo':
-            window.close()
-            gui_conf_photo()
-        if event == 'MS SQL DB':
-            window.close()
-            gui_conf_mssql()
-
-    # Графический интерфейс для Фотофиксации
-def gui_conf_photo():
-    global path
-    path = 'settings_photo.ini'
-    sg.theme('Gray Gray Gray')
-    layout = [
-        [sg.Text('Папка откуда изначально брать '), sg.InputText(), sg.FolderBrowse('Обзор')],
-        [sg.Text('Папка куда копировать              '), sg.InputText(), sg.FolderBrowse('Обзор')],
-        [sg.Text('ftp сервер                                  '), sg.InputText()],
-        [sg.Text('ftp login                                      '), sg.InputText()],
-        [sg.Text('ftp пароль                                  '), sg.InputText()],
-        [sg.Text('Стартовая папка FTP                 '), sg.InputText()],
-        [sg.Text('Кодавая страница FTP               '), sg.InputText()],
-        [sg.Text('Рекурсия проверки файлов дней'), sg.InputText()],
-        [sg.Text('Telegram Chat ID                        '), sg.InputText()],
-        [sg.Text('Индификатор обьекта                '), sg.InputText()],
-    
-        [sg.Submit('Сохранить'), sg.Cancel('Выход'), sg.Text('                                                                                  by c0unt_zer0_nc')]
-    ]
-    global window
     window = sg.Window('Создание файла конфигурации для бэкапера', layout)
     while True:                             
         event, values = window.read()
         if event in (None, 'Exit', 'Выход'):
+            window.close()
             break
+        if event == 'Photo на FTP':
+            window.close()
+            gui_conf_photo_ftp()
+        if event == 'Photo локально':
+            window.close()
+            gui_conf_photo_local()
+        if event == 'MS SQL DB на FTP':
+            window.close()
+            gui_conf_mssql_ftp()
+        if event == 'MS SQL DB локально':
+            window.close()
+            gui_conf_mssql_local()
+        if event == '1С на FTP':
+            window.close()
+            gui_conf_1c_ftp()
+        if event == '1С локально':
+            window.close()
+            gui_conf_1c_local()
+
+# Графический интерфейс для Фото на FTP
+def gui_conf_photo_ftp():
+    global path
+    path = 'settings_photo_ftp.ini'
+    sg.theme('Gray Gray Gray')
+    layout = [[sg.VPush()],
+        [sg.vcenter(sg.Text('Папка откуда изначально брать')), sg.InputText(tooltip='Откуда копировать'), sg.FolderBrowse('Обзор')],
+        [sg.vcenter(sg.Text('Папка куда копировать')), sg.Push(), sg.InputText(tooltip='Локальная папка архива'), sg.FolderBrowse('Обзор')],
+        [sg.vcenter(sg.Text('ftp сервер')), sg.Push(), sg.InputText(tooltip='Адрес сервера FTP')],
+        [sg.vcenter(sg.Text('ftp login')), sg.Push(), sg.InputText(tooltip='Пользователь сервера FTP')],
+        [sg.vcenter(sg.Text('ftp пароль')), sg.Push(), sg.InputText(tooltip='Пароль сервера FTP')],
+        [sg.vcenter(sg.Text('Стартовая папка FTP')), sg.Push(), sg.InputText(tooltip='Корневая директория FTP')],
+        [sg.vcenter(sg.Text('Кодавая страница FTP')), sg.Push(), sg.InputText(tooltip='Кодовая страница сервера FTP. "utf-8" или "cp1251"')],
+        [sg.vcenter(sg.Text('Рекурсия проверки файлов дней')), sg.Push(), sg.InputText(tooltip='Глубина проверки синхронизации файлов. Если указать 3 то будет проверять последние 3 дня')],
+        [sg.vcenter(sg.Text('Telegram Chat ID')), sg.Push(), sg.InputText(tooltip='Индентификатор твоего чата в ТГ. Чтобы присылать уведомления')],
+        [sg.vcenter(sg.Text('Индификатор обьекта')), sg.Push(), sg.InputText(tooltip='Имя запуска. Для использования в ТГ')],
+    
+        [sg.Submit('Сохранить'), sg.Submit('Назад'), sg.Cancel('Выход'), sg.Push(), sg.Text('by c0unt_zer0_nc')]
+    ]
+    global window
+    window = sg.Window('Создание файла конфигурации для бэкапера', layout, finalize=True)
+    window.TKroot.focus_force()
+    while True:                             
+        event, values = window.read()
+        if event in (None, 'Exit', 'Выход'):
+            window.close()
+            break
+        if event == 'Назад':
+            window.close()
+            gui_conf()
         if event == 'Сохранить':
             global src, dst, ftp, ftp_u, ftp_p, ftp_root, see, sel, chat_id, cp, name_obj, cipher_ke
             src = values[0]
@@ -87,9 +110,6 @@ def gui_conf_photo():
             ftp_u = ftp_ue.decode(encoding="utf-8", errors="strict")
             ftp_ps = values[4]
             ftp_pb = ftp_ps.encode(encoding="utf-8", errors="strict")
-#            cipher_key = Fernet.generate_key()
-#            cipher_ke = cipher_key.decode(encoding="utf-8", errors="strict")
-#            cipher = Fernet(cipher_key)
             ftp_pe = cipher.encrypt(ftp_pb)
             ftp_p = ftp_pe.decode(encoding="utf-8", errors="strict")
             ftp_root = values[5]
@@ -98,122 +118,357 @@ def gui_conf_photo():
             sel = int(see)
             chat_id = values[8]
             name_obj = values[9]
-            path = photo
+            path = photo_ftp
             window.close()
             create_Config(path)
             check_conf()
         else:
-            print('что то не так')
+            print(er_gui)
     return path
 
-    # Графический интерфейс для MS SQL Server
-def gui_conf_mssql():
+
+# Графический интерфейс для Фото локально
+def gui_conf_photo_local():
     global path
-    path = 'settings_mssql.ini'
+    path = 'settings_photo_local.ini'
     sg.theme('Gray Gray Gray')
-    layout = [
-        [sg.Text('MS SQL server                         '), sg.InputText()],
-        [sg.Text('MSSQL имя базы                     '), sg.InputText()],
-        [sg.Text('ftp сервер                                '), sg.InputText()],
-        [sg.Text('ftp login                                    '), sg.InputText()],
-        [sg.Text('ftp пароль                                '), sg.InputText()],
-        [sg.Text('Стартовая папка FTP                '), sg.InputText()],
-        [sg.Text('Кодавая страница FTP              '), sg.InputText()],
-        [sg.Text('Telegram Chat ID                       '), sg.InputText()],
-        [sg.Text('Индификатор обьекта                '), sg.InputText()],
-    
-        [sg.Submit('Сохранить'), sg.Cancel('Выход'), sg.Text('                                                                                  by c0unt_zer0_nc')]
+    layout = [[sg.VPush()],
+              [sg.vcenter(sg.Text('Папка откуда изначально брать')), sg.InputText(tooltip='Откуда копировать'), sg.FolderBrowse('Обзор')],
+              [sg.vcenter(sg.Text('Папка куда копировать')), sg.Push(), sg.InputText(tooltip='Куда копировать'), sg.FolderBrowse('Обзор')],
+              [sg.vcenter(sg.Text('Рекурсия проверки файлов дней')), sg.Push(), sg.InputText(
+                  tooltip='Глубина проверки синхронизации файлов. Если указать 3 то будет проверять последние 3 дня')],
+              [sg.vcenter(sg.Text('Telegram Chat ID')), sg.Push(),
+               sg.InputText(tooltip='Индентификатор твоего чата в ТГ. Чтобы присылать уведомления')],
+              [sg.vcenter(sg.Text('Индификатор обьекта')), sg.Push(),
+               sg.InputText(tooltip='Имя запуска. Для использования в ТГ')],
+
+              [sg.Submit('Сохранить'), sg.Submit('Назад'), sg.Cancel('Выход'), sg.Push(), sg.Text('by c0unt_zer0_nc')]
+              ]
+    global window
+    window = sg.Window('Создание файла конфигурации для бэкапера', layout, finalize=True)
+    window.TKroot.focus_force()
+    while True:
+        event, values = window.read()
+        if event in (None, 'Exit', 'Выход'):
+            break
+        if event == 'Назад':
+            window.close()
+            gui_conf()
+        if event == 'Сохранить':
+            global src, dst, see, sel, chat_id, name_obj
+            src = values[0]
+            dst = values[1]
+            see = values[2]
+            sel = int(see)
+            chat_id = values[3]
+            name_obj = values[4]
+            path = photo_local
+            window.close()
+            create_Config(path)
+            check_conf()
+        else:
+            print(er_gui)
+    return path
+
+# Графический интерфейс для MS SQL Server на FTP
+def gui_conf_mssql_ftp():
+    global path
+    path = 'settings_mssql_ftp.ini'
+    sg.theme('Gray Gray Gray')
+    layout = [[sg.VPush()],
+        [sg.vcenter(sg.Text('MS SQL server')), sg.Push(), sg.InputText(tooltip='Адрес MSSQL сервера')],
+        [sg.vcenter(sg.Text('MSSQL имя базы')), sg.Push(), sg.InputText(tooltip='Имя базы данных')],
+        [sg.vcenter(sg.Text('ftp сервер')), sg.Push(), sg.InputText(tooltip='Адрес сервера FTP')],
+        [sg.vcenter(sg.Text('ftp login')), sg.Push(), sg.InputText(tooltip='Логин сервера FTP')],
+        [sg.vcenter(sg.Text('ftp пароль')), sg.Push(), sg.InputText(tooltip='Пароль сервера FTP')],
+        [sg.vcenter(sg.Text('Стартовая папка FTP')), sg.Push(), sg.InputText(tooltip='Корневая папка сервера FTP')],
+        [sg.vcenter(sg.Text('Кодавая страница FTP')), sg.Push(), sg.InputText(tooltip='Кодовая страница сервера FTP. "utf-8" или "cp1251"')],
+        [sg.vcenter(sg.Text('Telegram Chat ID')), sg.Push(), sg.InputText(tooltip='Индентификатор твоего чата в ТГ. Чтобы присылать уведомления')],
+        [sg.vcenter(sg.Text('Индификатор обьекта')), sg.Push(), sg.InputText(tooltip='Имя запуска. Для использования в ТГ')],
+        [sg.Submit('Сохранить'), sg.Submit('Назад'), sg.Cancel('Выход'), sg.Push(), sg.Text('by c0unt_zer0_nc')]
     ]
-    #global window
-    window = sg.Window('Создание файла конфигурации для MS SQL базы', layout)
+    window = sg.Window('Создание файла конфигурации для MS SQL базы', layout, finalize=True)
+    window.TKroot.focus_force()
     while True:                             
         event, values = window.read()
-        if event == 'Выход':
-            window.close()
-        if event == window.close():
+        if event in (None, 'Exit', 'Выход'):
             break
+        if event == 'Назад':
+            window.close()
+            gui_conf()
+        if event == 'Сохранить':
+            global mssqls, mssql_db, ftp, ftp_u, ftp_p, ftp_root, chat_id, cp, name_obj, cipher_ke
+            mssqls = values[0]
+            mssql_db = values[1]
+            ftp = values[2]
+            ftp_us = values[3]
+            ftp_ub = ftp_us.encode(encoding="utf-8", errors="strict")
+            cipher_key = Fernet.generate_key()
+            cipher_ke = cipher_key.decode(encoding="utf-8", errors="strict")
+            cipher = Fernet(cipher_key)
+            ftp_ue = cipher.encrypt(ftp_ub)
+            ftp_u = ftp_ue.decode(encoding="utf-8", errors="strict")
+            ftp_ps = values[4]
+            ftp_pb = ftp_ps.encode(encoding="utf-8", errors="strict")
+            ftp_pe = cipher.encrypt(ftp_pb)
+            ftp_p = ftp_pe.decode(encoding="utf-8", errors="strict")
+            ftp_root = values[5]
+            cp = values[6]
+            chat_id = values[7]
+            name_obj = values[8]
+            path = mssql_ftp
+            window.close()
+            create_Config(path)
+            check_conf()
         else:
-            if event == 'Сохранить':
-                global mssqls, mssql_db, ftp, ftp_u, ftp_p, ftp_root, chat_id, cp, name_obj, cipher_ke
-                mssqls = values[0]
-                mssql_db = values[1]
-                ftp = values[2]
-                ftp_us = values[3]
-                ftp_ub = ftp_us.encode(encoding="utf-8", errors="strict")
-                cipher_key = Fernet.generate_key()
-                cipher_ke = cipher_key.decode(encoding="utf-8", errors="strict")
-                cipher = Fernet(cipher_key)
-                ftp_ue = cipher.encrypt(ftp_ub)
-                ftp_u = ftp_ue.decode(encoding="utf-8", errors="strict")
-                ftp_ps = values[4]
-                ftp_pb = ftp_ps.encode(encoding="utf-8", errors="strict")
-                #            cipher_key = Fernet.generate_key()
-                #            cipher_ke = cipher_key.decode(encoding="utf-8", errors="strict")
-                #            cipher = Fernet(cipher_key)
-                ftp_pe = cipher.encrypt(ftp_pb)
-                ftp_p = ftp_pe.decode(encoding="utf-8", errors="strict")
-                ftp_root = values[5]
-                cp = values[6]
-                chat_id = values[7]
-                name_obj = values[8]
-                path = mssql
-                window.close()
-                create_Config(path)
-                check_conf()
-                pass
-            else:
-                print('что то не так')
-                
-    # Cоздания конфиг. файла.
+            print(er_gui)
+
+# Графический интерфейс для MS SQL Server локально
+def gui_conf_mssql_local():
+    global path
+    path = 'settings_mssql_local.ini'
+    sg.theme('Gray Gray Gray')
+    layout = [[sg.VPush()],
+        [sg.vcenter(sg.Text('Папка локального архива')), sg.InputText(tooltip='Куда копировать'), sg.FolderBrowse('Обзор')],
+        [sg.vcenter(sg.Text('MS SQL server')), sg.Push(), sg.InputText(tooltip='Адрес MSSQL сервера')],
+        [sg.vcenter(sg.Text('MSSQL имя базы')), sg.Push(), sg.InputText(tooltip='Имя базы данных')],
+        [sg.vcenter(sg.Text('Telegram Chat ID')), sg.Push(), sg.InputText(tooltip='Индентификатор твоего чата в ТГ. Чтобы присылать уведомления')],
+        [sg.vcenter(sg.Text('Индификатор обьекта')), sg.Push(), sg.InputText(tooltip='Имя запуска. Для использования в ТГ')],
+        [sg.Submit('Сохранить'), sg.Submit('Назад'), sg.Cancel('Выход'), sg.Push(), sg.Text('by c0unt_zer0_nc')]
+    ]
+    window = sg.Window('Создание файла конфигурации для MS SQL базы', layout, finalize=True)
+    window.TKroot.focus_force()
+    while True:
+        event, values = window.read()
+        if event in (None, 'Exit', 'Выход'):
+            break
+        if event == 'Назад':
+            window.close()
+            gui_conf()
+        if event == 'Сохранить':
+            global dst, mssqls, mssql_db, chat_id, name_obj
+            dst = values[0]
+            mssqls = values[1]
+            mssql_db = values[2]
+            chat_id = values[3]
+            name_obj = values[4]
+            path = mssql_local
+            window.close()
+            create_Config(path)
+            check_conf()
+        else:
+            print(er_gui)
+
+# Графический интерфейс для 1C на FTP
+def gui_conf_1c_ftp():
+    global path
+    path = 'settings_1c_ftp.ini'
+    sg.theme('Gray Gray Gray')
+    layout = [[sg.VPush()],
+              [sg.vcenter(sg.Text('Папка откуда изначально брать')), sg.InputText(tooltip='Откуда копировать'),
+               sg.FolderBrowse('Обзор')],
+              [sg.vcenter(sg.Text('Папка куда копировать')), sg.Push(), sg.InputText(tooltip='Локальная папка архива'),
+               sg.FolderBrowse('Обзор')],
+              [sg.vcenter(sg.Text('ftp сервер')), sg.Push(), sg.InputText(tooltip='Адрес сервера FTP')],
+              [sg.vcenter(sg.Text('ftp login')), sg.Push(), sg.InputText(tooltip='Пользователь сервера FTP')],
+              [sg.vcenter(sg.Text('ftp пароль')), sg.Push(), sg.InputText(tooltip='Пароль сервера FTP')],
+              [sg.vcenter(sg.Text('Стартовая папка FTP')), sg.Push(), sg.InputText(tooltip='Корневая директория FTP')],
+              [sg.vcenter(sg.Text('Кодавая страница FTP')), sg.Push(),
+               sg.InputText(tooltip='Кодовая страница сервера FTP. "utf-8" или "cp1251"')],
+              [sg.vcenter(sg.Text('Telegram Chat ID')), sg.Push(),
+               sg.InputText(tooltip='Индентификатор твоего чата в ТГ. Чтобы присылать уведомления')],
+              [sg.vcenter(sg.Text('Индификатор обьекта')), sg.Push(),
+               sg.InputText(tooltip='Имя запуска. Для использования в ТГ')],
+
+              [sg.Submit('Сохранить'), sg.Submit('Назад'), sg.Cancel('Выход'), sg.Push(), sg.Text('by c0unt_zer0_nc')]
+              ]
+    global window
+    window = sg.Window('Создание файла конфигурации для бэкапера', layout, finalize=True)
+    window.TKroot.focus_force()
+    while True:
+        event, values = window.read()
+        if event in (None, 'Exit', 'Выход'):
+            window.close()
+            break
+        if event == 'Назад':
+            window.close()
+            gui_conf()
+        if event == 'Сохранить':
+            global src, dst, ftp, ftp_u, ftp_p, ftp_root, see, sel, chat_id, cp, name_obj, cipher_ke
+            src = values[0]
+            dst = values[1]
+            ftp = values[2]
+            ftp_us = values[3]
+            ftp_ub = ftp_us.encode(encoding="utf-8", errors="strict")
+            cipher_key = Fernet.generate_key()
+            cipher_ke = cipher_key.decode(encoding="utf-8", errors="strict")
+            cipher = Fernet(cipher_key)
+            ftp_ue = cipher.encrypt(ftp_ub)
+            ftp_u = ftp_ue.decode(encoding="utf-8", errors="strict")
+            ftp_ps = values[4]
+            ftp_pb = ftp_ps.encode(encoding="utf-8", errors="strict")
+            ftp_pe = cipher.encrypt(ftp_pb)
+            ftp_p = ftp_pe.decode(encoding="utf-8", errors="strict")
+            ftp_root = values[5]
+            cp = values[6]
+            chat_id = values[8]
+            name_obj = values[9]
+            path = ftp_1c
+            window.close()
+            create_Config(path)
+            check_conf()
+        else:
+            print(er_gui)
+    return path
+
+# Графический интерфейс для 1C локально
+def gui_conf_1c_local():
+    global path
+    path = 'settings_1c_local.ini'
+    sg.theme('Gray Gray Gray')
+    layout = [[sg.VPush()],
+              [sg.vcenter(sg.Text('Папка откуда изначально брать')), sg.InputText(tooltip='Откуда копировать'),
+               sg.FolderBrowse('Обзор')],
+              [sg.vcenter(sg.Text('Папка куда копировать')), sg.Push(), sg.InputText(tooltip='Локальная папка архива'),
+               sg.FolderBrowse('Обзор')],
+              [sg.vcenter(sg.Text('Telegram Chat ID')), sg.Push(),
+               sg.InputText(tooltip='Индентификатор твоего чата в ТГ. Чтобы присылать уведомления')],
+              [sg.vcenter(sg.Text('Индификатор обьекта')), sg.Push(),
+               sg.InputText(tooltip='Имя запуска. Для использования в ТГ')],
+
+              [sg.Submit('Сохранить'), sg.Submit('Назад'), sg.Cancel('Выход'), sg.Push(), sg.Text('by c0unt_zer0_nc')]
+              ]
+    global window
+    window = sg.Window('Создание файла конфигурации для бэкапера', layout, finalize=True)
+    window.TKroot.focus_force()
+    while True:
+        event, values = window.read()
+        if event in (None, 'Exit', 'Выход'):
+            window.close()
+            break
+        if event == 'Назад':
+            window.close()
+            gui_conf()
+        if event == 'Сохранить':
+            global src, dst, chat_id, name_obj
+            src = values[0]
+            dst = values[1]
+            chat_id = values[2]
+            name_obj = values[3]
+            path = local_1c
+            window.close()
+            create_Config(path)
+            check_conf()
+        else:
+            print(er_gui)
+    return path
+
+# Создаем файл конфигурации
 def create_Config(path):
     global config
-    if path == 'settings_mssql.ini':
+    if path == 'settings_mssql_ftp.ini':
         config = configparser.ConfigParser()
-        config.add_section("Settings")
+        config.add_section("System")
+        config.add_section("MS SQL")
         config.add_section("FTP")
         config.add_section("Telegram")
-        config.set("Settings", "cipher", (cipher_ke))
-        config.set("Settings", "name_obj", name_obj)
+        config.set("System", "Ключ", (cipher_ke))
+        config.set("System", "Имя обьекта", name_obj)
         config.set("Telegram", "chat_id", chat_id)
         config.set("FTP", "ftp_server", ftp)
         config.set("FTP", "ftp_username", ftp_u)
         config.set("FTP", "ftp_pass", ftp_p)
         config.set("FTP", "ftp_root", ftp_root)
         config.set("FTP", "cp", cp)
-        config.set("Settings", "mssqls", mssqls)
-        config.set("Settings", "mssql_db", mssql_db)
-        with open(path, "w") as config_file:
-            config.write(config_file)
-    if path == 'settings_photo.ini':
-        config = configparser.ConfigParser()
-        config.add_section("Settings")
-        config.add_section("FTP")
-        config.add_section("Telegram")
-        config.set("Settings", "cipher", (cipher_ke))
-        config.set("Settings", "name_obj", name_obj)
-        config.set("Telegram", "chat_id", chat_id)
-        config.set("FTP", "ftp_server", ftp)
-        config.set("FTP", "ftp_username", ftp_u)
-        config.set("FTP", "ftp_pass", ftp_p)
-        config.set("FTP", "ftp_root", ftp_root)
-        config.set("FTP", "cp", cp)
-        config.set("Settings", "days_before", see)
-        config.set("Settings", "src_dir", src)
-        config.set("Settings", "dst_dir", dst)
+        config.set("MS SQL", "Адрес подключения к MS SQL Server", mssqls)
+        config.set("MS SQL", "Имя базы данных MS SQL", mssql_db)
         with open(path, "w") as config_file:
             config.write(config_file)
 
-    # Читаем конфигурацию
+    if path == 'settings_mssql_local.ini':
+        config = configparser.ConfigParser()
+        config.add_section("MS SQL")
+        config.add_section("System")
+        config.add_section("Telegram")
+        config.set("System", "Имя обьекта", name_obj)
+        config.set("System", "Папка локального архива", dst)
+        config.set("Telegram", "chat_id", chat_id)
+        config.set("MS SQL", "Адрес подключения к MS SQL Server", mssqls)
+        config.set("MS SQL", "Имя базы данных MS SQL", mssql_db)
+        with open(path, "w") as config_file:
+            config.write(config_file)
+
+    if path == 'settings_photo_ftp.ini':
+        config = configparser.ConfigParser()
+        config.add_section("System")
+        config.add_section("FTP")
+        config.add_section("Telegram")
+        config.set("System", "Ключ", (cipher_ke))
+        config.set("System", "Имя обьекта", name_obj)
+        config.set("System", "days_before", see)
+        config.set("System", "src_dir", src)
+        config.set("System", "dst_dir", dst)
+        config.set("Telegram", "chat_id", chat_id)
+        config.set("FTP", "ftp_server", ftp)
+        config.set("FTP", "ftp_username", ftp_u)
+        config.set("FTP", "ftp_pass", ftp_p)
+        config.set("FTP", "ftp_root", ftp_root)
+        config.set("FTP", "cp", cp)
+        with open(path, "w") as config_file:
+            config.write(config_file)
+
+    if path == 'settings_photo_local.ini':
+        config = configparser.ConfigParser()
+        config.add_section("System")
+        config.add_section("Telegram")
+        config.set("System", "Имя обьекта", name_obj)
+        config.set("System", "days_before", see)
+        config.set("System", "src_dir", src)
+        config.set("System", "dst_dir", dst)
+        config.set("Telegram", "chat_id", chat_id)
+        with open(path, "w") as config_file:
+            config.write(config_file)
+
+    if path == 'settings_1c_ftp.ini':
+        config = configparser.ConfigParser()
+        config.add_section("System")
+        config.add_section("FTP")
+        config.add_section("Telegram")
+        config.set("System", "Ключ", (cipher_ke))
+        config.set("System", "Имя обьекта", name_obj)
+        config.set("System", "src_dir", src)
+        config.set("System", "dst_dir", dst)
+        config.set("Telegram", "chat_id", chat_id)
+        config.set("FTP", "ftp_server", ftp)
+        config.set("FTP", "ftp_username", ftp_u)
+        config.set("FTP", "ftp_pass", ftp_p)
+        config.set("FTP", "ftp_root", ftp_root)
+        config.set("FTP", "cp", cp)
+        with open(path, "w") as config_file:
+            config.write(config_file)
+
+    if path == 'settings_1c_local.ini':
+        config = configparser.ConfigParser()
+        config.add_section("System")
+        config.add_section("Telegram")
+        config.set("System", "Имя обьекта", name_obj)
+        config.set("System", "src_dir", src)
+        config.set("System", "dst_dir", dst)
+        config.set("Telegram", "chat_id", chat_id)
+        with open(path, "w") as config_file:
+            config.write(config_file)
+
+# Читаем конфигурацию
 def read_conf(path):
     global mssqls, mssql_db, ftp, ftp_u, ftp_p, ftp_root, see, sel, chat_id, src, dst, cp, name_obj
-    if path == 'settings_mssql.ini':
+    if path == 'settings_mssql_ftp.ini':
         config = configparser.ConfigParser()
         config.read(path)
-        name_obj = config.get("Settings", "name_obj")
-        mssqls = config.get("Settings", "mssqls")
-        mssql_db = config.get("Settings", "mssql_db")
+        name_obj = config.get("System", "Имя обьекта")
+        mssqls = config.get("MS SQL", "Адрес подключения к MS SQL Server")
+        mssql_db = config.get("MS SQL", "Имя базы данных MS SQL")
         ftp = config.get("FTP", "ftp_server")
-        cipher_ke = config.get("Settings", "cipher")
+        cipher_ke = config.get("System", "Ключ")
         ftp_us = config.get("FTP", "ftp_username")
         cipher_key = cipher_ke.encode(encoding="utf-8", errors="strict")
         cipher = Fernet(cipher_key)
@@ -221,22 +476,30 @@ def read_conf(path):
         ftp_ub = cipher.decrypt(ftp_ud)
         ftp_u = ftp_ub.decode(encoding="utf-8", errors="strict")
         ftp_ps = config.get("FTP", "ftp_pass")
-        #cipher_key = cipher_ke.encode(encoding="utf-8", errors="strict")
-        #cipher = Fernet(cipher_key)
         ftp_pd = ftp_ps.encode(encoding="utf-8", errors="strict")
         ftp_pb = cipher.decrypt(ftp_pd)
         ftp_p = ftp_pb.decode(encoding="utf-8", errors="strict")
         ftp_root = config.get("FTP", "ftp_root")
         cp = config.get("FTP", "cp")
         chat_id = config.get("Telegram", "chat_id")
-    if path == 'settings_photo.ini':
+
+    if path == 'settings_mssql_local.ini':
         config = configparser.ConfigParser()
         config.read(path)
-        name_obj = config.get("Settings", "name_obj")
-        src = config.get("Settings", "src_dir") + '/'
-        dst = config.get("Settings", "dst_dir") + '/'
+        name_obj = config.get("System", "Имя обьекта")
+        mssqls = config.get("MS SQL", "Адрес подключения к MS SQL Server")
+        mssql_db = config.get("MS SQL", "Имя базы данных MS SQL")
+        dst = config.get("System", "Папка локального архива")
+        chat_id = config.get("Telegram", "chat_id")
+
+    if path == 'settings_photo_ftp.ini':
+        config = configparser.ConfigParser()
+        config.read(path)
+        name_obj = config.get("System", "Имя обьекта")
+        src = config.get("System", "src_dir") + '/'
+        dst = config.get("System", "dst_dir") + '/'
         ftp = config.get("FTP", "ftp_server")
-        cipher_ke = config.get("Settings", "cipher")
+        cipher_ke = config.get("System", "Ключ")
         ftp_us = config.get("FTP", "ftp_username")
         cipher_key = cipher_ke.encode(encoding="utf-8", errors="strict")
         cipher = Fernet(cipher_key)
@@ -244,18 +507,65 @@ def read_conf(path):
         ftp_ub = cipher.decrypt(ftp_ud)
         ftp_u = ftp_ub.decode(encoding="utf-8", errors="strict")
         ftp_ps = config.get("FTP", "ftp_pass")
-        #cipher_key = cipher_ke.encode(encoding="utf-8", errors="strict")
-        #cipher = Fernet(cipher_key)
         ftp_pd = ftp_ps.encode(encoding="utf-8", errors="strict")
         ftp_pb = cipher.decrypt(ftp_pd)
         ftp_p = ftp_pb.decode(encoding="utf-8", errors="strict")
         ftp_root = config.get("FTP", "ftp_root")
         cp = config.get("FTP", "cp")
-        see = config.get("Settings", "days_before")
+        see = config.get("System", "days_before")
         sel = int(see)
         chat_id = config.get("Telegram", "chat_id")
 
+    if path == 'settings_photo_local.ini':
+        config = configparser.ConfigParser()
+        config.read(path)
+        name_obj = config.get("System", "Имя обьекта")
+        src = config.get("System", "src_dir") + '/'
+        dst = config.get("System", "dst_dir") + '/'
+        see = config.get("System", "days_before")
+        sel = int(see)
+        chat_id = config.get("Telegram", "chat_id")
 
+    if path == 'settings_1c_ftp.ini':
+        config = configparser.ConfigParser()
+        config.read(path)
+        name_obj = config.get("System", "Имя обьекта")
+        src = config.get("System", "src_dir") + '/'
+        dst = config.get("System", "dst_dir") + '/'
+        ftp = config.get("FTP", "ftp_server")
+        cipher_ke = config.get("System", "Ключ")
+        ftp_us = config.get("FTP", "ftp_username")
+        cipher_key = cipher_ke.encode(encoding="utf-8", errors="strict")
+        cipher = Fernet(cipher_key)
+        ftp_ud = ftp_us.encode(encoding="utf-8", errors="strict")
+        ftp_ub = cipher.decrypt(ftp_ud)
+        ftp_u = ftp_ub.decode(encoding="utf-8", errors="strict")
+        ftp_ps = config.get("FTP", "ftp_pass")
+        ftp_pd = ftp_ps.encode(encoding="utf-8", errors="strict")
+        ftp_pb = cipher.decrypt(ftp_pd)
+        ftp_p = ftp_pb.decode(encoding="utf-8", errors="strict")
+        ftp_root = config.get("FTP", "ftp_root")
+        cp = config.get("FTP", "cp")
+        chat_id = config.get("Telegram", "chat_id")
+
+    if path == 'settings_1c_local.ini':
+        config = configparser.ConfigParser()
+        config.read(path)
+        name_obj = config.get("System", "Имя обьекта")
+        src = config.get("System", "src_dir") + '/'
+        dst = config.get("System", "dst_dir") + '/'
+        chat_id = config.get("Telegram", "chat_id")
+
+# Проверка активного процесса
+def process_exists(process_name):
+    progs = str(subprocess.check_output('tasklist'))
+    if process_name in progs:
+        os.system(killproc)
+        if process_name in progs:
+            process_exists(process_name)
+    return process_name
+
+# Создаем локальную копию
 def copylocal(folder1, folder2):
     global flcount, dlcount
     tod = datetime.datetime.now()
@@ -322,8 +632,8 @@ def copylocal(folder1, folder2):
                             print('файл существует: ' + z)
                 return folder2
             makedir(folder2)
-    # Создаем локальную копию
 
+# Получаем дату для MSSQL_DB
 def date_time():
     global tod, ymd, y, m, mmm, mm, D, H, M, data_full, yMD, yMd
     tod = datetime.datetime.now()
@@ -342,8 +652,8 @@ def date_time():
     DD = a.day
     yMD = YY + '-' + m + '-' + str(DD)
     yMd = YY + '-' + str(mmm) + '-' + str(DD)
-    # Получаем дату для MSSQL_DB
 
+# Копируем MSSQL DB
 def copy_mssql():
     global fname, fdate
     cnxn = pyodbc.connect('DRIVER={SQL Server};SERVER='+mssqls+';Trusted_Connection=yes')
@@ -365,23 +675,24 @@ def copy_mssql():
             pass
         cursor.close()
         cnxn.close()
-    # Копируем MSSQL DB
 
+# Архивируем MSSQL DB
 def zipper():
     archive_name = data_full + '-' + mssql_db
     source_dir = location + '/' + mssql_db + '/'
     shutil.make_archive(archive_name, format="zip", root_dir=source_dir)
 
-    # Архивируем MSSQL DB
-
+# класс загрузки папок и файлов на ftp
 class FtpUploadFolder():
     def __init__(self, server, user, passwd, catalog):
         self.fcount = 0
         self.dcount = 0
-        self.ftp = ftplib.FTP(server, user, passwd, encoding=cp) #, encoding='cp1251'
+        self.ftp = ftplib.FTP(server, user, passwd, encoding=cp)
         self.ftp.cwd(catalog)
+
     def uploadOne(self, new_name, path_name):
         self.ftp.storbinary('STOR ' + new_name, open(path_name, 'rb'))
+
     def uploadDir(self, localdir):
         tod = datetime.datetime.now()
         for i in range(0, sel):
@@ -524,9 +835,9 @@ class FtpUploadFolder():
         fcount = self.fcount
         dcount = self.dcount
         print('uploaded files: ', self.fcount)
-    # класс загрузки папок и файлов на ftp
 
-def mssql_upload():
+# выгрузка MS SQL на FTP
+def mssql_ftp_upload():
     global localedir
     date_time()
     if mssql_db in location:
@@ -550,8 +861,30 @@ def mssql_upload():
         bot = telebot.TeleBot(token)
         bot.send_message(chat_id, "Бэкап БД MSSQL на обьекте " + name_obj + " закончен. Результат: " + ' На FTP скопированно новых файлов: ' + str(fcount))
 
-def photo_upload():
-    if photo in os.listdir():
+# выгрузка MS SQL локально
+def mssql_local_upload():
+    #global localedir
+    date_time()
+    if mssql_db in location:
+        shutil.rmtree(location + '\\' + mssql_db)
+    else:
+        os.mkdir(location + '\\' + mssql_db)
+        print('Создаем локальную копию')
+        copy_mssql()
+        print('Архивируем')
+        zipper()
+        print('Убираемся')
+        os.remove(location + '\\' + mssql_db + '\\' + mssql_db + '.bak')
+        shutil.move(fdate + '-' + mssql_db + '.zip', dst + '\\' + name_obj + '\\' + y + '\\' + mm + '\\' + fdate + '-' + mssql_db + '.zip')
+        #localedir = location + '\\' + mssql_db + '\\'
+        print('Закончил копирование. Собираю монатки и сваливаю')
+        shutil.rmtree(location + '//' + mssql_db)
+        bot = telebot.TeleBot(token)
+        bot.send_message(chat_id, "Бэкап БД MSSQL на обьекте " + name_obj + " закончен.")
+
+# выгрузка Фото на FTP
+def photo_ftp_upload():
+    if photo_ftp in os.listdir():
         print('Создаем локальную копию')
         copylocal(src, dst)
         print('Запускаю копирование на FTP')
@@ -561,28 +894,106 @@ def photo_upload():
         print('Закончил копирование на FTP. Собираю монатки и сваливаю')
         bot = telebot.TeleBot(token)
         bot.send_message(chat_id,
-                         "Бэкап фотофиксации весовой на обьекте " + name_obj + " закончен. Результат: Локально создано новых папок: " + str(
+                         "Бэкап фотофиксации весовой на обьекте " + name_obj +
+                         " закончен. Результат: Локально создано новых папок: " +
+                         str(dlcount) + " Локально скопированно новых файлов: " +
+                         str(flcount) + " На FTP созданно новых папок: " + str(dcount) +
+                         ' На FTP скопированно новых файлов: ' + str(fcount))
+
+# выгрузка Фото локально
+def photo_local_upload():
+    if photo_local in os.listdir():
+        print('Создаем локальную копию')
+        copylocal(src, dst)
+        print('Закончил копирование на FTP. Собираю монатки и сваливаю')
+        bot = telebot.TeleBot(token)
+        bot.send_message(chat_id,
+                         "Бэкап фотофиксации весовой на обьекте " + name_obj +
+                         " закончен. Результат: Локально создано новых папок: " + str(
                              dlcount) + " Локально скопированно новых файлов: " + str(
-                             flcount) + " На FTP созданно новых папок: " + str(dcount) + ' На FTP скопированно новых файлов: ' + str(fcount))
+                             flcount))
 
+# выгрузка 1C на FTP
+def ftp_1c_upload():
+    if ftp_1c in os.listdir():
+        process_exists(process_name)
+        print('Создаем локальную копию')
+        copylocal(src, dst)
+        print('Запускаю копирование на FTP')
+        f = FtpUploadFolder(ftp, ftp_u, ftp_p, ftp_root)
+        f.uploadDir(dst)
+        f.close()
+        print('Закончил копирование на FTP. Собираю монатки и сваливаю')
+        bot = telebot.TeleBot(token)
+        bot.send_message(chat_id,
+                         "Бэкап 1C на обьекте " + name_obj +
+                         " закончен. Результат: Локально создано новых папок: " +
+                         str(dlcount) + " Локально скопированно новых файлов: " +
+                         str(flcount) + " На FTP созданно новых папок: " + str(dcount) +
+                         ' На FTP скопированно новых файлов: ' + str(fcount))
 
+# выгрузка 1C локально
+def local_1c_upload():
+    if local_1c in os.listdir():
+        process_exists(process_name)
+        date_time()
+        archive_name = data_full
+        print('Архивируем')
+        shutil.make_archive(archive_name, format="zip", root_dir=src)
+        print('Создаем локальную копию')
+        if not y in os.listdir(dst):
+            os.mkdir(dst + '\\' + y)
+        if not mm in os.listdir(dst + '\\' + y):
+            os.mkdir(dst + '\\' + y + '\\' + mm)
+        shutil.move(archive_name + '.zip', dst + '\\' + y + '\\' + mm + '\\' + archive_name + '.zip')
+        print('Закончил копирование. Собираю монатки и сваливаю')
+        bot = telebot.TeleBot(token)
+        bot.send_message(chat_id,
+                         "Бэкап 1C на обьекте " + name_obj +
+                         " закончен. Результат: Локально создано новых папок: " + str(
+                             dlcount) + " Локально скопированно новых файлов: " + str(
+                             flcount))
 
-    # Проверяем наличие файла конфигурационого файла и запуск выполнения задачи.
+# Проверка файла конфигурации
 def check_conf():
-    global path#, cp
-    if photo in os.listdir():
-        path = photo
-        print('Фото')
+    global path
+    if photo_ftp in os.listdir():
+        path = photo_ftp
+        print('Фото на FTP')
         read_conf(path)
-        photo_upload()
+        photo_ftp_upload()
     else:
-        if mssql in os.listdir():
-            path = mssql
-            print('MS SQL')
+        if photo_local in os.listdir():
+            path = photo_local
+            print('Фото локально')
             read_conf(path)
-            mssql_upload()
+            photo_local_upload()
         else:
-            gui_conf()
+            if mssql_ftp in os.listdir():
+                path = mssql_ftp
+                print('MS SQL на FTP')
+                read_conf(path)
+                mssql_ftp_upload()
+            else:
+                if mssql_local in os.listdir():
+                    path = mssql_local
+                    print('MS SQL локально')
+                    read_conf(path)
+                    mssql_local_upload()
+                else:
+                    if ftp_1c in os.listdir():
+                        path = ftp_1c
+                        print('1C на FTP')
+                        read_conf(path)
+                        ftp_1c_upload()
+                    else:
+                        if local_1c in os.listdir():
+                            path = local_1c
+                            print('1C локально')
+                            read_conf(path)
+                            local_1c_upload()
+                        else:
+                            gui_conf()
 
 check_conf()
 
