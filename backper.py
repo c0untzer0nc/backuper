@@ -8,6 +8,7 @@ import telebot
 import pyodbc
 import subprocess
 from cryptography.fernet import Fernet
+from webdav3.client import Client
 
 token = '6197644867:AAGqBg-SFQc8JAAr6zA6duVv_F-bdRiq_Gg'
 photo_ftp = 'settings_photo_ftp.ini'
@@ -897,6 +898,40 @@ class FtpUploadFolder():
         dcount = self.dcount
         print('uploaded files: ', self.fcount)
 
+# выгрузка на облако
+# options = {'webdav_hostname': 'https://sbptg.ru/','webdav_login': 'labushkin.alexandr','webdav_password': 'Rhbgnjyjvbrjy21'}
+# client = Client(options)
+# root = '/remote.php/webdav/'
+# local = 'd:/test/'
+# web_dir = root + 'test' + '/'
+# dir = client.list(root)
+# def uploadfile_to_cloud(localdir):
+#     global web_dir, fcount, dcount
+#     localfiles = os.listdir(localdir)
+#     for localname in localfiles:
+#         localpath = os.path.join(localdir, localname)
+#         if not os.path.isdir(localpath):
+#             if not client.check(web_dir + localname):
+#                 client.upload(web_dir + localname, localpath)
+#                 print('Файл загрузили ', localname)
+#                 fcount += 1
+#             else:
+#                 print('Файл существует', localname)
+#         else:
+#             try:
+#                 if not client.check(web_dir + localname):
+#                     client.mkdir(web_dir + localname)
+#                     print('Папка создана', localname)
+#                     dcount += 1
+#                     web_dir = web_dir + localname + '/'
+#                 else:
+#                     web_dir = web_dir + localname + '/'
+#                     print('Папка существует', localname)
+#             except:
+#                 print('все')
+#             uploadfile(localpath)
+# uploadfile(local)
+
 # выгрузка MS SQL на FTP
 def mssql_ftp_upload():
     global localedir
@@ -982,7 +1017,6 @@ def ftp_1c_upload():
         archive_name = data_full
         print('Архивируем')
         shutil.make_archive(archive_name, format="zip", root_dir=src)
-        #print('Создаем локальную копию')
         if not y in os.listdir(dst):
             os.mkdir(dst + '/' + y)
         if not mm in os.listdir(dst + '/' + y):
