@@ -22,12 +22,12 @@ er_gui = 'Что то не так'
 process_name = "1cv8s.exe"
 command = "taskkill /t /F /IM "
 killproc = command + process_name
-src = 0
-dst = 0
-see = 0
-sel = 0
-mssqls = 0
-msssql_db = 0
+# src = 0
+# dst = 0
+# see = 0
+# sel = 0
+# mssqls = 0
+# msssql_db = 0
 flcount = 0
 dlcount = 0
 fcount = 0
@@ -381,8 +381,8 @@ def create_Config(path):
         config.set("FTP", "ftp_pass", ftp_p)
         config.set("FTP", "ftp_root", ftp_root)
         config.set("FTP", "cp", cp)
-        config.set("MS SQL", "Адрес подключения к MS SQL Server", mssqls)
-        config.set("MS SQL", "Имя базы данных MS SQL", mssql_db)
+        config.set("MS SQL", "Адрес подключения к MS SQL Server", str(mssqls))
+        config.set("MS SQL", "Имя базы данных MS SQL", str(mssql_db))
         with open(path, "w") as config_file:
             config.write(config_file)
 
@@ -392,9 +392,9 @@ def create_Config(path):
         config.add_section("System")
         config.add_section("Telegram")
         config.set("System", "Имя обьекта", name_obj)
-        config.set("System", "Папка локального архива", dst)
+        config.set("System", "Папка локального архива", str(dst))
         config.set("Telegram", "chat_id", chat_id)
-        config.set("MS SQL", "Адрес подключения к MS SQL Server", mssqls)
+        config.set("MS SQL", "Адрес подключения к MS SQL Server", str(mssqls))
         config.set("MS SQL", "Имя базы данных MS SQL", mssql_db)
         with open(path, "w") as config_file:
             config.write(config_file)
@@ -569,6 +569,7 @@ def process_exists(process_name):
 # Создаем локальную копию
 def copylocal(folder1, folder2):
     global flcount, dlcount
+    #flcount = int(0)
     tod = datetime.datetime.now()
     for i in range(0, sel):
         templist = [0, 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
@@ -600,7 +601,7 @@ def copylocal(folder1, folder2):
                     dstdir = os.listdir(folder2)                           
                 if not mm in dstdir:                                    
                     os.mkdir(folder2  + mm)                               
-                    folder2 = folder2 + mm + '/'                        
+                    folder2 = folder2 + mm + '/'
                     dstdir = os.listdir(folder2)                        
                 else:
                     folder2 = folder2+ mm + '/'                         
@@ -899,38 +900,38 @@ class FtpUploadFolder():
         print('uploaded files: ', self.fcount)
 
 # выгрузка на облако
-# options = {'webdav_hostname': 'https://sbptg.ru/','webdav_login': 'labushkin.alexandr','webdav_password': 'Rhbgnjyjvbrjy21'}
-# client = Client(options)
-# root = '/remote.php/webdav/'
-# local = 'd:/test/'
-# web_dir = root + 'test' + '/'
-# dir = client.list(root)
-# def uploadfile_to_cloud(localdir):
-#     global web_dir, fcount, dcount
-#     localfiles = os.listdir(localdir)
-#     for localname in localfiles:
-#         localpath = os.path.join(localdir, localname)
-#         if not os.path.isdir(localpath):
-#             if not client.check(web_dir + localname):
-#                 client.upload(web_dir + localname, localpath)
-#                 print('Файл загрузили ', localname)
-#                 fcount += 1
-#             else:
-#                 print('Файл существует', localname)
-#         else:
-#             try:
-#                 if not client.check(web_dir + localname):
-#                     client.mkdir(web_dir + localname)
-#                     print('Папка создана', localname)
-#                     dcount += 1
-#                     web_dir = web_dir + localname + '/'
-#                 else:
-#                     web_dir = web_dir + localname + '/'
-#                     print('Папка существует', localname)
-#             except:
-#                 print('все')
-#             uploadfile(localpath)
-# uploadfile(local)
+options = {'webdav_hostname': 'https://sbptg.ru/','webdav_login': 'labushkin.alexandr','webdav_password': 'Rhbgnjyjvbrjy21'}
+client = Client(options)
+root = '/remote.php/webdav/'
+local = 'd:/test/'
+web_dir = root + 'test' + '/'
+dir = client.list(root)
+def uploadfile_to_cloud(localdir):
+    global web_dir, fcount, dcount
+    localfiles = os.listdir(localdir)
+    for localname in localfiles:
+        localpath = os.path.join(localdir, localname)
+        if not os.path.isdir(localpath):
+            if not client.check(web_dir + localname):
+                client.upload(web_dir + localname, localpath)
+                print('Файл загрузили ', localname)
+                fcount += 1
+            else:
+                print('Файл существует', localname)
+        else:
+            try:
+                if not client.check(web_dir + localname):
+                    client.mkdir(web_dir + localname)
+                    print('Папка создана', localname)
+                    dcount += 1
+                    web_dir = web_dir + localname + '/'
+                else:
+                    web_dir = web_dir + localname + '/'
+                    print('Папка существует', localname)
+            except:
+                print('все')
+            uploadfile_to_cloud(localpath)
+#uploadfile(local)
 
 # выгрузка MS SQL на FTP
 def mssql_ftp_upload():
