@@ -15,6 +15,9 @@ photo_ftp = 'settings_photo_ftp.ini'
 photo_local = 'settings_photo_local.ini'
 mssql_ftp = 'settings_mssql_ftp.ini'
 mssql_local = 'settings_mssql_local.ini'
+mssql_cloud = 'settings_mssql_cloud.ini'
+photo_cloud = 'settings_photo_cloud.ini'
+cloud_1c = 'settings_1c_cloud.ini'
 ftp_1c = 'settings_1c_ftp.ini'
 local_1c = 'settings_1c_local.ini'
 location = os.getcwd()
@@ -569,7 +572,6 @@ def process_exists(process_name):
 # Создаем локальную копию
 def copylocal(folder1, folder2):
     global flcount, dlcount
-    #flcount = int(0)
     tod = datetime.datetime.now()
     for i in range(0, sel):
         templist = [0, 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
@@ -637,10 +639,9 @@ def copylocal(folder1, folder2):
 
 # Получаем дату для MSSQL_DB
 def date_time():
-    global tod, ymd, y, m, mmm, mm, D, H, M, data_full, yMD, yMd
-    tod = datetime.datetime.now()
+    global ymd, y, m, mmm, mm, D, H, M, data_full, yMD, yMd
     templist = [0, 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
-    a = tod
+    a = datetime.datetime.now()
     ymd = a.strftime('%Y-%m-%d')
     H = a.strftime ('%H')
     M = a.strftime ('%M')
@@ -1055,6 +1056,13 @@ def local_1c_upload():
         bot.send_message(chat_id,
                          "Бэкап 1C на обьекте " + name_obj + " закончен.")
 
+def cloud_1c_upload():
+    pass
+def mssql_cloud_upload():
+    pass
+def photo_cloud_upload():
+    pass
+
 # Проверка файла конфигурации
 def check_conf():
     global path
@@ -1082,19 +1090,37 @@ def check_conf():
                     read_conf(path)
                     mssql_local_upload()
                 else:
-                    if ftp_1c in os.listdir():
-                        path = ftp_1c
-                        print('1C на FTP')
+                    if mssql_cloud in os.listdir():
+                        path = mssql_cloud
+                        print('MS SQL на Облако')
                         read_conf(path)
-                        ftp_1c_upload()
+                        mssql_cloud_upload()
                     else:
-                        if local_1c in os.listdir():
-                            path = local_1c
-                            print('1C локально')
+                        if ftp_1c in os.listdir():
+                            path = ftp_1c
+                            print('1C на FTP')
                             read_conf(path)
-                            local_1c_upload()
+                            ftp_1c_upload()
                         else:
-                            gui_conf()
+                            if local_1c in os.listdir():
+                                path = local_1c
+                                print('1C локально')
+                                read_conf(path)
+                                local_1c_upload()
+                            else:
+                                if cloud_1c in os.listdir():
+                                    path = cloud_1c
+                                    print('1C на Облако')
+                                    read_conf(path)
+                                    cloud_1c_upload()
+                                else:
+                                    if photo_cloud in os.listdir():
+                                        path = photo_cloud
+                                        print('Фото на Облако')
+                                        read_conf(path)
+                                        photo_cloud_upload()
+                                    else:
+                                        gui_conf()
 
 check_conf()
 
