@@ -9,7 +9,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.StreamHandler(sys.stdout), # Оставляем вывод в консоль
+        #logging.StreamHandler(sys.stdout), # Оставляем вывод в консоль
         logging.FileHandler(log_file_path, mode='a', encoding='utf-8') # Добавляем запись в файл
     ]
 )
