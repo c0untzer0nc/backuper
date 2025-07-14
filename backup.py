@@ -17,7 +17,6 @@ import base64
 import os
 import socket
 
-
 # --- НАСТРОЙКА ЛОГИРОВАНИЯ ---
 logging.basicConfig(
     level=logging.INFO,
@@ -54,16 +53,19 @@ DEFAULT_MYSQL_SERVER = 'localhost'
 DEFAULT_MYSQL_DATABASE = 'mysql'
 DEFAULT_MYSQL_USER = 'root'
 DEFAULT_MYSQL_PASS = 'your_mysql_password'
-DEFAULT_MYSQL_DUMP_PATH = 'mysqldump' # Default path for mysqldump
+DEFAULT_MYSQL_DUMP_PATH = 'mysqldump'  # Default path for mysqldump
 
 DEFAULT_POSTGRESQL_DRIVER = '{PostgreSQL Unicode(x64)}'
 DEFAULT_POSTGRESQL_SERVER = 'localhost'
 DEFAULT_POSTGRESQL_DATABASE = 'postgres'
 DEFAULT_POSTGRESQL_USER = 'postgres'
 DEFAULT_POSTGRESQL_PASS = 'your_pg_password'
-DEFAULT_POSTGRESQL_DUMP_PATH = 'pg_dump' # Default path for pg_dump
+DEFAULT_POSTGRESQL_DUMP_PATH = 'pg_dump'  # Default path for pg_dump
 
 DEFAULT_ZIP_PASSWORD = 'MyComplexBackupPassword2025'
+
+# НОВАЯ НАСТРОЙКА: Количество хранимых бэкапов для ротации
+DEFAULT_ROTATION_KEEP_COUNT = 7
 
 # Директория для временных файлов бэкапов перед сжатием
 TEMP_SQL_BACKUP_DIR = Path('C:\\TempSQLBackups')
@@ -79,6 +81,12 @@ class BaseStorage:
     def __init__(self, config_manager):
         self.config_manager = config_manager
         self.is_enabled = False  # По умолчанию отключено
+        # ИЗМЕНЕНИЕ: Считываем настройку ротации. 0 или меньше отключает ротацию.
+        try:
+            self.rotation_count = int(
+                self.config_manager.get_setting('Rotation', 'keep_count', DEFAULT_ROTATION_KEEP_COUNT))
+        except ValueError:
+            self.rotation_count = DEFAULT_ROTATION_KEEP_COUNT
 
     def connect(self):
         """Устанавливает соединение с хранилищем."""
@@ -90,6 +98,10 @@ class BaseStorage:
 
     def is_available(self):
         """Проверяет доступность хранилища."""
+        raise NotImplementedError
+
+    def rotate_backups(self, database_name):
+        """Выполняет ротацию бэкапов в хранилище для конкретной БД."""
         raise NotImplementedError
 
     def close(self):
@@ -118,6 +130,40 @@ class LocalStorage(BaseStorage):
             logging.error(f"Ошибка при создании директории локального хранилища '{self.base_path}': {e}")
             return False
 
+    def rotate_backups(self, database_name):
+        """Удаляет старые бэкапы для конкретной БД, если их количество превышает лимит."""
+        if not self.is_enabled or self.rotation_count <= 0:
+            return
+
+        logging.info(f"Локальное хранилище: Проверка ротации для БД '{database_name}' в '{self.base_path}'...")
+        try:
+            # ИСПРАВЛЕНИЕ: Шаблон имени файла теперь соответствует реальному имени.
+            # Было: *_{database_name}_*_backup.zip, Стало: *{database_name}_*_backup.zip
+            backup_pattern = f"*-{database_name}_*_backup.zip"
+            backups = sorted(
+                [p for p in self.base_path.glob(backup_pattern) if p.is_file()],
+                key=lambda p: p.name
+            )
+
+            logging.info(
+                f"Локальное хранилище: Найдено {len(backups)} бэкапов для БД '{database_name}'. Лимит: {self.rotation_count}.")
+
+            # Проверяем, нужно ли удалять старые бэкапы
+            if len(backups) >= self.rotation_count:
+                logging.info(f"Удаляем старые бэкапы для БД '{database_name}'.")
+                # Количество бэкапов для удаления
+                to_delete_count = len(backups) - self.rotation_count + 1
+                files_to_delete = backups[:to_delete_count]
+
+                for f in files_to_delete:
+                    try:
+                        f.unlink()
+                        logging.info(f"Локальное хранилище: Удален старый бэкап '{f.name}'.")
+                    except OSError as e:
+                        logging.error(f"Локальное хранилище: Ошибка при удалении файла '{f.name}': {e}")
+        except Exception as e:
+            logging.error(f"Локальное хранилище: Ошибка при ротации бэкапов: {e}")
+
     def upload_file(self, local_filepath, remote_filename):
         """Копирует файл в локальное хранилище."""
         if not self.is_enabled:
@@ -143,7 +189,7 @@ class FtpStorage(BaseStorage):
         # Changed section name
         self.server = self.config_manager.get_setting('FTP_Backup', 'server', DEFAULT_FTP_SERVER)
         self.user = self.config_manager.get_setting('FTP_Backup', 'user', DEFAULT_FTP_USER)
-        self.passwd = self.config_manager.get_setting('FTP_Backup', 'password', DEFAULT_FTP_PASS) # Changed option name
+        self.passwd = self.config_manager.get_setting('FTP_Backup', 'password', DEFAULT_FTP_PASS)  # Changed option name
         self.base_path = self.config_manager.get_setting('FTP_Backup', 'base_path', DEFAULT_FTP_BASE_PATH)
         self.encoding = self.config_manager.get_setting('FTP_Backup', 'encoding', DEFAULT_FTP_ENCODING)
         self.client = None
@@ -247,6 +293,39 @@ class FtpStorage(BaseStorage):
         # После цикла мы должны находиться в конечной директории пути
         return True
 
+    def rotate_backups(self, database_name):
+        """Удаляет старые бэкапы на FTP для конкретной БД, если их количество превышает лимит."""
+        if not self.is_enabled or self.rotation_count <= 0 or not self.client:
+            return
+
+        logging.info(f"FTP: Проверка ротации для БД '{database_name}' в '{self.base_path}'...")
+        try:
+            self.client.cwd(self.base_path)
+            filenames = self.client.nlst()
+
+            # ИСПРАВЛЕНИЕ: Фильтруем файлы, используя правильный шаблон имени с дефисом.
+            # Было: f"_{database_name}_" in f, Стало: f"-{database_name}_" in f
+            backup_files = sorted([f for f in filenames if f.endswith('.zip') and f"-{database_name}_" in f])
+
+            logging.info(
+                f"FTP: Найдено {len(backup_files)} бэкапов для БД '{database_name}'. Лимит: {self.rotation_count}.")
+
+            if len(backup_files) >= self.rotation_count:
+                logging.info(f"Удаляем старые бэкапы для БД '{database_name}'.")
+                to_delete_count = len(backup_files) - self.rotation_count + 1
+                files_to_delete = backup_files[:to_delete_count]
+
+                for filename in files_to_delete:
+                    try:
+                        self.client.delete(filename)
+                        logging.info(f"FTP: Удален старый бэкап '{filename}'.")
+                    except ftplib.all_errors as e:
+                        logging.error(f"FTP: Ошибка при удалении файла '{filename}': {e}")
+        except ftplib.all_errors as e:
+            logging.error(f"FTP: Ошибка при ротации бэкапов: {e}")
+        except Exception as e:
+            logging.error(f"FTP: Непредвиденная ошибка при ротации бэкапов: {e}")
+
     def upload_file(self, local_filepath, remote_filename):
         """Загружает файл на FTP-сервер."""
         if not self.is_enabled:
@@ -309,11 +388,12 @@ class WebDAVStorage(BaseStorage):
         # Changed section name
         self.url = self.config_manager.get_setting('WebDAV_Backup', 'url', DEFAULT_WEBDAV_URL)
         self.user = self.config_manager.get_setting('WebDAV_Backup', 'user', DEFAULT_WEBDAV_USER)
-        self.passwd = self.config_manager.get_setting('WebDAV_Backup', 'password', DEFAULT_WEBDAV_PASS) # Changed option name
+        self.passwd = self.config_manager.get_setting('WebDAV_Backup', 'password',
+                                                      DEFAULT_WEBDAV_PASS)  # Changed option name
         self.base_path = self.config_manager.get_setting('WebDAV_Backup', 'base_path', DEFAULT_WEBDAV_BASE_PATH)
         self.client = None
         self.is_enabled = self.config_manager.get_boolean_setting('WebDAV_Backup', 'enabled', False)
-        self.connected = False # Инициализируем состояние подключения
+        self.connected = False  # Инициализируем состояние подключения
         if self.is_enabled:
             logging.info(f"WebDAV хранилище инициализировано: {self.url}{self.base_path}")
 
@@ -337,7 +417,7 @@ class WebDAVStorage(BaseStorage):
                 return False
 
             logging.info(f"WebDAV: Успешное подключение к WebDAV: {self.url}")
-            self.connected = True # Устанавливаем connected в True при успешном подключении
+            self.connected = True  # Устанавливаем connected в True при успешном подключении
             return True
         except Exception as e:
             logging.error(f"WebDAV: Ошибка подключения: {e}")
@@ -371,13 +451,48 @@ class WebDAVStorage(BaseStorage):
         logging.info(f"WebDAV: Базовая директория '{path}' доступна.")
         return True
 
+    def rotate_backups(self, database_name):
+        """Удаляет старые бэкапы на WebDAV для конкретной БД, если их количество превышает лимит."""
+        if not self.is_enabled or self.rotation_count <= 0 or not self.client:
+            return
+
+        logging.info(f"WebDAV: Проверка ротации для БД '{database_name}' в '{self.base_path}'...")
+        try:
+            files_info = self.client.list(self.base_path, get_info=True)
+
+            # ИСПРАВЛЕНИЕ: Фильтруем файлы, используя правильный шаблон имени с дефисом.
+            # Было: f"_{database_name}_" in f['name'], Стало: f"-{database_name}_" in f['name']
+            backup_files = sorted(
+                [f for f in files_info if
+                 f['name'].endswith('.zip') and f.get('type') == 'file' and f"-{database_name}_" in f['name']],
+                key=lambda f: os.path.basename(f['name'])
+            )
+
+            logging.info(
+                f"WebDAV: Найдено {len(backup_files)} бэкапов для БД '{database_name}'. Лимит: {self.rotation_count}.")
+
+            if len(backup_files) >= self.rotation_count:
+                logging.info(f"Удаляем старые бэкапы для БД '{database_name}'.")
+                to_delete_count = len(backup_files) - self.rotation_count + 1
+                files_to_delete = backup_files[:to_delete_count]
+
+                for file_info in files_to_delete:
+                    path_to_delete = file_info['name']
+                    try:
+                        self.client.remove(path_to_delete)
+                        logging.info(f"WebDAV: Удален старый бэкап '{os.path.basename(path_to_delete)}'.")
+                    except Exception as e:
+                        logging.error(f"WebDAV: Ошибка при удалении файла '{os.path.basename(path_to_delete)}': {e}")
+        except Exception as e:
+            logging.error(f"WebDAV: Ошибка при ротации бэкапов: {e}")
+
     def upload_file(self, local_path, remote_path):
         # Используем self.connected для проверки состояния подключения
         if not self.connected:
             logging.error("WebDAV: Не подключено к хранилищу WebDAV.")
             return False
         try:
-            full_remote_path = Path(self.base_path) / remote_path # Исправлено: self.base_dir на self.base_path
+            full_remote_path = Path(self.base_path) / remote_path  # Исправлено: self.base_dir на self.base_path
             webdav_target_path = full_remote_path.as_posix().lstrip('/')
             logging.info(f"WebDAV: Загрузка файла '{local_path}' в '{webdav_target_path}'...")
             self.client.upload_file(local_path, webdav_target_path)
@@ -392,7 +507,7 @@ class WebDAVStorage(BaseStorage):
         if not self.is_enabled:
             return False
         try:
-            if self.client and self.connected: # Добавлена проверка self.connected
+            if self.client and self.connected:  # Добавлена проверка self.connected
                 # Попытка выполнить простую операцию, чтобы проверить соединение
                 # Например, получить список содержимого базовой директории
                 self.client.list(self.base_path)
@@ -400,7 +515,7 @@ class WebDAVStorage(BaseStorage):
             return False
         except Exception:
             self.client = None
-            self.connected = False # Сбрасываем состояние подключения при ошибке
+            self.connected = False  # Сбрасываем состояние подключения при ошибке
             return False
 
     def close(self):
@@ -410,7 +525,7 @@ class WebDAVStorage(BaseStorage):
                 # Для webdav4 client нет явного метода close/quit,
                 # можно сбросить ссылку на объект.
                 self.client = None
-                self.connected = False # Сбрасываем состояние подключения
+                self.connected = False  # Сбрасываем состояние подключения
                 logging.info("WebDAV: Соединение закрыто.")
             except Exception as e:
                 logging.warning(f"WebDAV: Ошибка при закрытии соединения: {e}")
@@ -485,11 +600,17 @@ class BaseBackup:
         raise NotImplementedError
 
     def _upload_and_cleanup(self, zipped_backup_path, database_name, original_backup_path=None):
-        """Загружает сжатый файл в настроенные хранилища и очищает временные файлы."""
+        """Загружает сжатый файл в настроенные хранилища, выполняет ротацию и очищает временные файлы."""
         remote_filename = zipped_backup_path.name  # Имя файла для удаленного хранилища
 
         for storage in self.storages:
             if storage.is_enabled:
+                # ИЗМЕНЕНИЕ: 1. Выполняем ротацию ПЕРЕД загрузкой нового бэкапа, передавая имя БД
+                logging.info(
+                    f"Выполнение ротации для хранилища '{type(storage).__name__.replace('Storage', '')}' для БД '{database_name}'...")
+                storage.rotate_backups(database_name)
+
+                # ИЗМЕНЕНИЕ: 2. Загружаем новый бэкап
                 logging.info(
                     f"Загрузка бэкапа '{remote_filename}' в хранилище '{type(storage).__name__.replace('Storage', '')}'...")
                 if storage.upload_file(zipped_backup_path, remote_filename):
@@ -508,8 +629,12 @@ class BaseBackup:
             logging.info(f"Временный сжатый файл '{zipped_backup_path}' удален.")
 
         if original_backup_path and original_backup_path.exists():
-            original_backup_path.unlink()
-            logging.info(f"Временный файл бэкапа SQL Server '{original_backup_path}' удален.")
+            if original_backup_path.is_dir():
+                shutil.rmtree(original_backup_path)
+                logging.info(f"Временная директория бэкапа '{original_backup_path}' удалена.")
+            else:
+                original_backup_path.unlink()
+                logging.info(f"Временный файл бэкапа '{original_backup_path}' удален.")
 
 
 class MssqlBackup(BaseBackup):
@@ -519,7 +644,8 @@ class MssqlBackup(BaseBackup):
         self.server = self.config_manager.get_setting('MSSQL_Backup', 'server', DEFAULT_MSSQL_SERVER)
         self.database = self.config_manager.get_setting('MSSQL_Backup', 'database', DEFAULT_MSSQL_DATABASE)
         self.user = self.config_manager.get_setting('MSSQL_Backup', 'user', DEFAULT_MSSQL_USER)
-        self.passwd = self.config_manager.get_setting('MSSQL_Backup', 'password', DEFAULT_MSSQL_PASS) # Changed option name
+        self.passwd = self.config_manager.get_setting('MSSQL_Backup', 'password',
+                                                      DEFAULT_MSSQL_PASS)  # Changed option name
         # Changed option name from backup_mode to mode
         self.backup_mode = self.config_manager.get_setting('MSSQL_Backup', 'mode',
                                                            'all_databases')  # 'all_databases' или 'single_database'
@@ -651,7 +777,8 @@ class MysqlBackup(BaseBackup):
         self.server = self.config_manager.get_setting('MySQL_Backup', 'server', DEFAULT_MYSQL_SERVER)
         self.database = self.config_manager.get_setting('MySQL_Backup', 'database', DEFAULT_MYSQL_DATABASE)
         self.user = self.config_manager.get_setting('MySQL_Backup', 'user', DEFAULT_MYSQL_USER)
-        self.passwd = self.config_manager.get_setting('MySQL_Backup', 'password', DEFAULT_MYSQL_PASS) # Changed option name
+        self.passwd = self.config_manager.get_setting('MySQL_Backup', 'password',
+                                                      DEFAULT_MYSQL_PASS)  # Changed option name
         # Added mysqldump_path
         self.mysqldump_path = self.config_manager.get_setting('MySQL_Backup', 'mysqldump_path', DEFAULT_MYSQL_DUMP_PATH)
         # Changed option name from mode to backup_mode for consistency
@@ -667,8 +794,8 @@ class MysqlBackup(BaseBackup):
 
         timestamp = datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
         db_identifier = self.database if self.database and self.database.lower() != 'all' else 'all_databases'
-        output_filename = f"mysql_backup_{timestamp}.sql" # This is a temp file, not the final archive name, keep it simple.
-        output_filepath = TEMP_COMPRESSED_DIR / output_filename # Define output_filepath
+        output_filename = f"mysql_backup_{timestamp}.sql"  # This is a temp file, not the final archive name, keep it simple.
+        output_filepath = TEMP_COMPRESSED_DIR / output_filename  # Define output_filepath
         zipped_backup_filename = f"{timestamp}-{db_identifier}_mysql_backup.zip"
         zipped_backup_path = TEMP_COMPRESSED_DIR / zipped_backup_filename
 
@@ -676,7 +803,7 @@ class MysqlBackup(BaseBackup):
             # mysqldump -u [user] -p[password] --host=[host] [database_name] > [output_file.sql]
             # Добавим --all-databases если не указана конкретная БД
             command = [
-                self.mysqldump_path, # Using the configured path
+                self.mysqldump_path,  # Using the configured path
                 f'--user={self.user}',
                 f'--password={self.passwd}',
                 f'--host={self.server}'
@@ -696,12 +823,14 @@ class MysqlBackup(BaseBackup):
             logging.info(f"Начинаем сжатие файла '{output_filepath}' в '{zipped_backup_path}'...")
             if self.compressor.compress(output_filepath, zipped_backup_path):
                 logging.info(f"Бэкап MySQL успешно сжат в '{zipped_backup_path}'.")
-                self._upload_and_cleanup(zipped_backup_path, 'mysql_all_dbs', output_filepath)
+                # Для MySQL имя БД для ротации - это db_identifier
+                self._upload_and_cleanup(zipped_backup_path, db_identifier, output_filepath)
             else:
                 logging.error("Не удалось сжать бэкап MySQL.")
 
         except FileNotFoundError:
-            logging.error(f"mysqldump не найден по пути '{self.mysqldump_path}'. Убедитесь, что MySQL установлен и путь к mysqldump указан верно в конфигурации или находится в PATH.")
+            logging.error(
+                f"mysqldump не найден по пути '{self.mysqldump_path}'. Убедитесь, что MySQL установлен и путь к mysqldump указан верно в конфигурации или находится в PATH.")
         except subprocess.CalledProcessError as e:
             logging.error(f"Ошибка выполнения mysqldump: {e}")
         except Exception as e:
@@ -720,9 +849,11 @@ class PostgresqlBackup(BaseBackup):
         self.server = self.config_manager.get_setting('PostgreSQL_Backup', 'server', DEFAULT_POSTGRESQL_SERVER)
         self.database = self.config_manager.get_setting('PostgreSQL_Backup', 'database', DEFAULT_POSTGRESQL_DATABASE)
         self.user = self.config_manager.get_setting('PostgreSQL_Backup', 'user', DEFAULT_POSTGRESQL_USER)
-        self.passwd = self.config_manager.get_setting('PostgreSQL_Backup', 'password', DEFAULT_POSTGRESQL_PASS) # Changed option name
+        self.passwd = self.config_manager.get_setting('PostgreSQL_Backup', 'password',
+                                                      DEFAULT_POSTGRESQL_PASS)  # Changed option name
         # Added pg_dump_path
-        self.pg_dump_path = self.config_manager.get_setting('PostgreSQL_Backup', 'pg_dump_path', DEFAULT_POSTGRESQL_DUMP_PATH)
+        self.pg_dump_path = self.config_manager.get_setting('PostgreSQL_Backup', 'pg_dump_path',
+                                                            DEFAULT_POSTGRESQL_DUMP_PATH)
         # Changed option name from mode to backup_mode for consistency
         self.backup_mode = self.config_manager.get_setting('PostgreSQL_Backup', 'mode', 'all')
 
@@ -736,8 +867,8 @@ class PostgresqlBackup(BaseBackup):
 
         timestamp = datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
         db_identifier = self.database if self.database and self.database.lower() != 'all' else 'all_databases'
-        output_filename = f"postgresql_backup_{timestamp}.sql" # This is a temp file, not the final archive name, keep it simple.
-        output_filepath = TEMP_COMPRESSED_DIR / output_filename # Define output_filepath
+        output_filename = f"postgresql_backup_{timestamp}.sql"  # This is a temp file, not the final archive name, keep it simple.
+        output_filepath = TEMP_COMPRESSED_DIR / output_filename  # Define output_filepath
         zipped_backup_filename = f"{timestamp}-{db_identifier}_postgresql_backup.zip"
         zipped_backup_path = TEMP_COMPRESSED_DIR / zipped_backup_filename
 
@@ -748,7 +879,7 @@ class PostgresqlBackup(BaseBackup):
             env['PGPASSWORD'] = self.passwd
 
             command = [
-                self.pg_dump_path, # Using the configured path
+                self.pg_dump_path,  # Using the configured path
                 f'--host={self.server}',
                 f'--username={self.user}',
             ]
@@ -767,12 +898,14 @@ class PostgresqlBackup(BaseBackup):
             logging.info(f"Начинаем сжатие файла '{output_filepath}' в '{zipped_backup_path}'...")
             if self.compressor.compress(output_filepath, zipped_backup_path):
                 logging.info(f"Бэкап PostgreSQL успешно сжат в '{zipped_backup_path}'.")
-                self._upload_and_cleanup(zipped_backup_path, 'postgresql_all_dbs', output_filepath)
+                # Для PostgreSQL имя БД для ротации - это db_identifier
+                self._upload_and_cleanup(zipped_backup_path, db_identifier, output_filepath)
             else:
                 logging.error("Не удалось сжать бэкап PostgreSQL.")
 
         except FileNotFoundError:
-            logging.error(f"pg_dump не найден по пути '{self.pg_dump_path}'. Убедитесь, что PostgreSQL установлен и путь к pg_dump указан верно в конфигурации или находится в PATH.")
+            logging.error(
+                f"pg_dump не найден по пути '{self.pg_dump_path}'. Убедитесь, что PostgreSQL установлен и путь к pg_dump указан верно в конфигурации или находится в PATH.")
         except subprocess.CalledProcessError as e:
             logging.error(f"Ошибка выполнения pg_dump: {e}. Проверьте пароль и доступ.")
         except Exception as e:
@@ -859,7 +992,8 @@ class ConfigManager:
                         self.encryption_key = f_master.decrypt(encrypted_fernet_key.encode('utf-8'))
                         logging.info("Ключ шифрования загружен и успешно расшифрован.")
                     except Exception as e:
-                        logging.error(f"Не удалось расшифровать ключ шифрования с помощью мастер-ключа ПК. Данные не будут дешифрованы: {e}")
+                        logging.error(
+                            f"Не удалось расшифровать ключ шифрования с помощью мастер-ключа ПК. Данные не будут дешифрованы: {e}")
                         self.encryption_key = None
                 else:
                     logging.warning("Ключ шифрования не найден в конфигурации. Пароли не будут дешифрованы.")
@@ -885,7 +1019,8 @@ class ConfigManager:
             f_master = Fernet(self.pc_master_key)
             encrypted_fernet_key = f_master.encrypt(self.encryption_key).decode('utf-8')
             self.config.set('Encryption', 'key', encrypted_fernet_key)
-            logging.info("Новый Fernet ключ сгенерирован и зашифрован. Будет сохранен при следующей записи конфигурации.")
+            logging.info(
+                "Новый Fernet ключ сгенерирован и зашифрован. Будет сохранен при следующей записи конфигурации.")
         except Exception as e:
             logging.error(f"Не удалось зашифровать и сохранить новый Fernet ключ: {e}")
             self.encryption_key = None  # В случае ошибки, сбросить
@@ -965,7 +1100,8 @@ class ConfigManager:
                     logging.error(f"Ошибка при дешифровании {section}/{option}: {e}. Возвращаем исходное значение.")
                     return value  # Возвращаем необработанное значение, если дешифрование не удалось
             else:
-                logging.warning(f"Нет ключа шифрования или значение None, возвращаем необработанное значение для {section}/{option}.")
+                logging.warning(
+                    f"Нет ключа шифрования или значение None, возвращаем необработанное значение для {section}/{option}.")
                 return value  # Возвращаем необработанное значение, если нет ключа или значение None
         return value
 
@@ -1057,7 +1193,6 @@ def main():
     # Закрытие всех открытых соединений хранилищ
     for storage in active_storages:
         storage.close()
-
 
 # if __name__ == '__main__':
 #     main()

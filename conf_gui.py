@@ -4,7 +4,7 @@ import sys
 import logging
 import pyodbc  # Импортируем pyodbc для получения списка драйверов
 import datetime  # Для определения времени суток
-import webbrowser # Добавлено для открытия ссылок
+import webbrowser  # Добавлено для открытия ссылок
 
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
@@ -27,6 +27,7 @@ from cryptography.hazmat.backends import default_backend
 import base64
 import os
 import socket
+
 # Removed: from kivy.uix.filechooser import FileChooserEntry # Removed due to ImportError
 
 # --- НАСТРОЙКИ ПО УМОЛЧАНИЮ (Используются, если нет в файле конфигурации) ---
@@ -66,6 +67,9 @@ DEFAULT_ZIP_PASSWORD = 'MyComplexBackupPassword2025'
 # ИСПРАВЛЕНО: Установлены пути по умолчанию для mysqldump и pg_dump
 DEFAULT_MYSQL_DUMP_PATH = 'C:/Program Files/'
 DEFAULT_POSTGRESQL_DUMP_PATH = 'C:/Program Files/'
+
+# НОВАЯ НАСТРОЙКА: Количество хранимых бэкапов для ротации
+DEFAULT_ROTATION_KEEP_COUNT = '7'
 
 # --- НАСТРОЙКА ЛОГИРОВАНИЯ (для внутренних сообщений GUI) ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -231,7 +235,8 @@ class ConfigManager:
                         self.encryption_key = f_master.decrypt(encrypted_fernet_key.encode('utf-8'))
                         logging.info("Ключ шифрования загружен и успешно расшифрован.")
                     except Exception as e:
-                        logging.error(f"Не удалось расшифровать ключ шифрования с помощью мастер-ключа ПК. Данные не будут дешифрованы: {e}")
+                        logging.error(
+                            f"Не удалось расшифровать ключ шифрования с помощью мастер-ключа ПК. Данные не будут дешифрованы: {e}")
                         self.encryption_key = None
                 else:
                     logging.warning("Ключ шифрования не найден в конфигурации. Пароли не будут дешифрованы.")
@@ -257,7 +262,8 @@ class ConfigManager:
             f_master = Fernet(self.pc_master_key)
             encrypted_fernet_key = f_master.encrypt(self.encryption_key).decode('utf-8')
             self.config.set('Encryption', 'key', encrypted_fernet_key)
-            logging.info("Новый Fernet ключ сгенерирован и зашифрован. Будет сохранен при следующей записи конфигурации.")
+            logging.info(
+                "Новый Fernet ключ сгенерирован и зашифрован. Будет сохранен при следующей записи конфигурации.")
         except Exception as e:
             logging.error(f"Не удалось зашифровать и сохранить новый Fernet ключ: {e}")
             self.encryption_key = None  # В случае ошибки, сбросить
@@ -337,7 +343,8 @@ class ConfigManager:
                     logging.error(f"Ошибка при дешифровании {section}/{option}: {e}. Возвращаем исходное значение.")
                     return value  # Возвращаем необработанное значение, если дешифрование не удалось
             else:
-                logging.warning(f"Нет ключа шифрования или значение None, возвращаем необработанное значение для {section}/{option}.")
+                logging.warning(
+                    f"Нет ключа шифрования или значение None, возвращаем необработанное значение для {section}/{option}.")
                 return value  # Возвращаем необработанное значение, если нет ключа или значение None
         return value
 
@@ -362,9 +369,9 @@ class LoadDialog(FloatLayout):
         # ИЗМЕНЕНО: Используем initial_path, если он передан и валиден, иначе домашнюю диреторию
         if initial_path and os.path.isdir(initial_path):
             self.ids.file_chooser.path = initial_path
-        elif initial_path and os.path.isfile(initial_path): # Если указан файл, открываем его папку
+        elif initial_path and os.path.isfile(initial_path):  # Если указан файл, открываем его папку
             self.ids.file_chooser.path = os.path.dirname(initial_path)
-            self.ids.file_chooser.selection = [initial_path] # Пытаемся выбрать сам файл
+            self.ids.file_chooser.selection = [initial_path]  # Пытаемся выбрать сам файл
         else:
             # ИСПРАВЛЕНО: Устанавливаем путь по умолчанию в папку запуска скрипта
             self.ids.file_chooser.path = os.path.abspath(os.path.dirname(__file__))
@@ -499,35 +506,37 @@ class ConfigEditorScreen(BoxLayout):
         self.add_widget(save_button)
 
         # Новый горизонтальный макет для нижней информации (2025г. и by c0unt_zer0_nc)
-        bottom_info_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=20, padding=[0, 0, 0, 0], spacing=0)
+        bottom_info_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=20, padding=[0, 0, 0, 0],
+                                       spacing=0)
 
         # Левая надпись: 2025г.
         year_label = Label(
             text='2025г.',
-            size_hint_x=0.5, # Занимает половину ширины
+            size_hint_x=0.5,  # Занимает половину ширины
             halign='left',
             valign='middle',
             markup=True,
             color=get_color_from_hex(current_colors['text_color'])
         )
-        year_label.bind(width=lambda label_instance, width_value: setattr(label_instance, 'text_size', (width_value, None)))
+        year_label.bind(
+            width=lambda label_instance, width_value: setattr(label_instance, 'text_size', (width_value, None)))
         bottom_info_layout.add_widget(year_label)
 
         # Правая надпись: by c0unt_zer0_nc с гиперссылкой
         signature_label = Label(
             text=f'[ref=https://count-work.ru][color={current_colors["section_header_text"]}]by c0unt_zer0_nc[/color][/ref]',
             markup=True,
-            size_hint_x=0.5, # Занимает вторую половину ширины
+            size_hint_x=0.5,  # Занимает вторую половину ширины
             halign='right',
             valign='middle',
             color=get_color_from_hex(current_colors['text_color'])
         )
-        signature_label.bind(width=lambda label_instance, width_value: setattr(label_instance, 'text_size', (width_value, None)))
+        signature_label.bind(
+            width=lambda label_instance, width_value: setattr(label_instance, 'text_size', (width_value, None)))
         signature_label.bind(on_ref_press=self._open_url)
         bottom_info_layout.add_widget(signature_label)
 
         self.add_widget(bottom_info_layout)
-
 
     # ИСПРАВЛЕНИЕ: Добавлен вспомогательный метод для KV-разметки
     def get_color_from_hex_str(self, hex_color_string):
@@ -543,7 +552,7 @@ class ConfigEditorScreen(BoxLayout):
 
     def set_config_manager(self, config_manager_instance):
         self.config_manager = config_manager_instance
-        self._build_ui() # Перемещено сюда
+        self._build_ui()  # Перемещено сюда
         self._load_existing_config_to_ui()
 
     def _add_section_header(self, title):
@@ -615,11 +624,11 @@ class ConfigEditorScreen(BoxLayout):
         # ИЗМЕНЕНО: Передаем popup_instance в lambda функцию load
         content = LoadDialog(initial_path=text_input_widget.text,
                              dir_only=dir_only,
-                             load=lambda path, selection: self._load_path_from_chooser(text_input_widget, path, selection, popup),
+                             load=lambda path, selection: self._load_path_from_chooser(text_input_widget, path,
+                                                                                       selection, popup),
                              cancel=popup.dismiss)
         popup.content = content
         popup.open()
-
 
     # ИЗМЕНЕНО: Добавлен параметр popup_instance
     def _load_path_from_chooser(self, text_input_widget, path, selection, popup_instance):
@@ -631,8 +640,7 @@ class ConfigEditorScreen(BoxLayout):
             # Если ничего не выбрано (например, просто нажата кнопка "Выбрать папку"), используем текущий путь
             selected_path = path
         text_input_widget.text = selected_path
-        popup_instance.dismiss() # ИСПРАВЛЕНИЕ: Закрываем попап после выбора
-
+        popup_instance.dismiss()  # ИСПРАВЛЕНИЕ: Закрываем попап после выбора
 
     def _add_checkbox_and_inputs(self, checkbox_label, section_name, default_enabled, fields_info):
         """
@@ -644,13 +652,14 @@ class ConfigEditorScreen(BoxLayout):
         checkbox = CheckBox(size_hint_x=0.1, color=get_color_from_hex(current_colors['checkbox_color']))
         checkbox.active = default_enabled
         box_layout.add_widget(checkbox)
-        box_layout.add_widget(Label(text=f'[b]{checkbox_label}[/b]', markup=True, size_hint_x=0.9, color=get_color_from_hex(current_colors['text_color'])))
+        box_layout.add_widget(Label(text=f'[b]{checkbox_label}[/b]', markup=True, size_hint_x=0.9,
+                                    color=get_color_from_hex(current_colors['text_color'])))
         self.content_layout.add_widget(box_layout)
-        self.checkboxes[section_name] = checkbox # Сохраняем ссылку на чекбокс
+        self.checkboxes[section_name] = checkbox  # Сохраняем ссылку на чекбокс
 
         # Создаем контейнер для полей ввода, которые будут скрываться/показываться
         input_container = BoxLayout(orientation='vertical', size_hint_y=None, height=0, opacity=0)
-        input_container.bind(minimum_height=input_container.setter('height')) # Для автоматического изменения высоты
+        input_container.bind(minimum_height=input_container.setter('height'))  # Для автоматического изменения высоты
 
         if section_name not in self.input_widgets:
             self.input_widgets[section_name] = {}
@@ -700,7 +709,7 @@ class ConfigEditorScreen(BoxLayout):
                 input_layout.add_widget(widget)
                 input_container.add_widget(input_layout)
                 self.input_widgets[section_name][key] = widget
-            elif input_widget_type == 'mode_spinner': # НОВОЕ: Для выбора режима бэкапа
+            elif input_widget_type == 'mode_spinner':  # НОВОЕ: Для выбора режима бэкапа
                 input_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=30, spacing=10)
                 input_layout.add_widget(
                     Label(text=label_text, size_hint_x=0.3, color=get_color_from_hex(current_colors['text_color'])))
@@ -717,14 +726,14 @@ class ConfigEditorScreen(BoxLayout):
                 input_layout.add_widget(widget)
                 input_container.add_widget(input_layout)
                 self.input_widgets[section_name][key] = widget
-            elif input_widget_type == 'folder_picker': # НОВОЕ: Для выбора папки
+            elif input_widget_type == 'folder_picker':  # НОВОЕ: Для выбора папки
                 input_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=30, spacing=10)
                 input_layout.add_widget(
                     Label(text=label_text, size_hint_x=0.3, color=get_color_from_hex(current_colors['text_color'])))
                 widget = TextInput(
                     text=default_value,
                     multiline=False,
-                    size_hint_x=0.6, # НОВОЕ: Меньший size_hint_x, чтобы освободить место для кнопки
+                    size_hint_x=0.6,  # НОВОЕ: Меньший size_hint_x, чтобы освободить место для кнопки
                     background_color=get_color_from_hex(current_colors['input_background']),
                     foreground_color=get_color_from_hex(current_colors['input_text']),
                     cursor_color=get_color_from_hex(current_colors['input_cursor'])
@@ -732,7 +741,7 @@ class ConfigEditorScreen(BoxLayout):
                 input_layout.add_widget(widget)
                 button = Button(
                     text="Обзор",
-                    size_hint_x=0.1, # НОВОЕ: Кнопка "Обзор"
+                    size_hint_x=0.1,  # НОВОЕ: Кнопка "Обзор"
                     background_normal='',
                     background_color=get_color_from_hex(current_colors['button_normal']),
                     color=get_color_from_hex(current_colors['button_text'])
@@ -740,13 +749,12 @@ class ConfigEditorScreen(BoxLayout):
                 # ИЗМЕНЕНО: dir_only устанавливается в зависимости от поля
                 if key in ['mysqldump_path', 'pg_dump_path']:
                     button.bind(on_release=lambda x, w=widget: self._show_file_chooser(w, dir_only=False))
-                else: # For other folder pickers like local backup path, keep dir_only=True
+                else:  # For other folder pickers like local backup path, keep dir_only=True
                     button.bind(on_release=lambda x, w=widget: self._show_file_chooser(w, dir_only=True))
 
                 input_layout.add_widget(button)
                 input_container.add_widget(input_layout)
                 self.input_widgets[section_name][key] = widget
-
 
         self.content_layout.add_widget(input_container)
 
@@ -761,11 +769,9 @@ class ConfigEditorScreen(BoxLayout):
             # Обновляем макет вручную, чтобы Kivy пересчитал размеры
             self.content_layout.do_layout()
 
-
         checkbox.bind(active=toggle_inputs)
         # Устанавливаем начальное состояние полей при загрузке UI
         toggle_inputs(checkbox, checkbox.active)
-
 
     def _build_ui(self):
         """Строит пользовательский интерфейс динамически."""
@@ -773,8 +779,16 @@ class ConfigEditorScreen(BoxLayout):
 
         # --- Основные настройки ---
         self._add_section_header('Общие настройки')
-        # Removed the config_file_path input field as requested
-        # self._add_input_field('Путь к файлу конфигурации:', 'General', 'config_file_path', self.config_manager.config_file_path)
+
+        # ИЗМЕНЕНИЕ: Добавлена секция для настройки ротации
+        self._add_section_header('Настройки Ротации Бэкапов')
+        self._add_input_field(
+            'Количество хранимых бэкапов (0-откл):',
+            'Rotation',
+            'keep_count',
+            DEFAULT_ROTATION_KEEP_COUNT,
+            password=False
+        )
 
         # --- Настройки FTP ---
         self._add_section_header('Настройки FTP')
@@ -798,7 +812,8 @@ class ConfigEditorScreen(BoxLayout):
             section_name='Local_Backup',
             default_enabled=self.config_manager.get_boolean_setting('Local_Backup', 'enabled', fallback=False),
             fields_info=[
-                ('Путь локального бэкапа:', 'path', DEFAULT_LOCAL_BACKUP_PATH, False, 'folder_picker'), # Используем folder_picker
+                ('Путь локального бэкапа:', 'path', DEFAULT_LOCAL_BACKUP_PATH, False, 'folder_picker'),
+                # Используем folder_picker
             ]
         )
 
@@ -875,17 +890,12 @@ class ConfigEditorScreen(BoxLayout):
             ]
         )
 
-
     def _load_existing_config_to_ui(self):
         """Загружает существующую конфигурацию в элементы UI."""
-        # Путь к файлу конфигурации больше не отображается в UI.
-        # Убедимся, что General section exists, но не пытаемся получить доступ к input_widgets['General']['config_file_path']
-        # if 'General' in self.input_widgets and 'config_file_path' in self.input_widgets['General']:
-        #     self.input_widgets['General']['config_file_path'].text = self.config_manager.config_file_path
-
-
-        # Загрузка настроек для каждого раздела
         sections_info = {
+            'Rotation': [
+                ('keep_count', 'textinput')
+            ],
             'FTP_Backup': [
                 ('server', 'textinput'), ('user', 'textinput'), ('password', 'textinput'),
                 ('base_path', 'textinput'), ('encoding', 'textinput')
@@ -913,11 +923,10 @@ class ConfigEditorScreen(BoxLayout):
             ]
         }
 
-
         for section_name, fields in sections_info.items():
-            # Загрузка состояния чекбокса
-            is_enabled = self.config_manager.get_boolean_setting(section_name, 'enabled', fallback=False)
+            # Загрузка состояния чекбокса (если он есть)
             if section_name in self.checkboxes:
+                is_enabled = self.config_manager.get_boolean_setting(section_name, 'enabled', fallback=False)
                 self.checkboxes[section_name].active = is_enabled
 
             # Загрузка значений полей ввода/спиннеров
@@ -934,51 +943,19 @@ class ConfigEditorScreen(BoxLayout):
         """Сохраняет текущие настройки из UI в файл конфигурации."""
         config_data = {}
 
-        # Общие настройки
-        # config_file_path остается в config_data, но не берется из UI, т.к. поля больше нет.
-        config_data['General'] = {
-            'config_file_path': self.config_manager.config_file_path
-        }
+        # Собираем данные из всех виджетов, хранящихся в self.input_widgets
+        for section_name, widgets in self.input_widgets.items():
+            if section_name not in config_data:
+                config_data[section_name] = {}
+            for key, widget in widgets.items():
+                if isinstance(widget, (TextInput, Spinner)):
+                    config_data[section_name][key] = widget.text
 
-        # Сохранение настроек для каждого раздела
-        sections_info = {
-            'FTP_Backup': [
-                ('server', 'textinput'), ('user', 'textinput'), ('password', 'textinput'),
-                ('base_path', 'textinput'), ('encoding', 'textinput')
-            ],
-            'Local_Backup': [
-                ('path', 'textinput')
-            ],
-            'WebDAV_Backup': [
-                ('url', 'textinput'), ('user', 'textinput'), ('password', 'textinput'), ('base_path', 'textinput')
-            ],
-            'MSSQL_Backup': [
-                ('driver', 'spinner'), ('server', 'textinput'), ('database', 'textinput'),
-                ('user', 'textinput'), ('password', 'textinput'), ('mode', 'spinner')
-            ],
-            'MySQL_Backup': [
-                ('mysqldump_path', 'textinput'), ('server', 'textinput'), ('database', 'textinput'),
-                ('user', 'textinput'), ('password', 'textinput'), ('mode', 'spinner')
-            ],
-            'PostgreSQL_Backup': [
-                ('pg_dump_path', 'textinput'), ('server', 'textinput'), ('database', 'textinput'),
-                ('user', 'textinput'), ('password', 'textinput'), ('mode', 'spinner')
-            ],
-            'Compression': [
-                ('password', 'textinput')
-            ]
-        }
-
-        for section_name, fields in sections_info.items():
-            config_data[section_name] = {
-                'enabled': str(self.checkboxes[section_name].active)
-            }
-            if section_name in self.input_widgets:
-                for key, widget in self.input_widgets[section_name].items():
-                    if isinstance(widget, TextInput):
-                        config_data[section_name][key] = widget.text
-                    elif isinstance(widget, Spinner):
-                        config_data[section_name][key] = widget.text
+        # Добавляем состояние чекбоксов для секций, у которых они есть
+        for section_name, checkbox in self.checkboxes.items():
+            if section_name not in config_data:
+                config_data[section_name] = {}
+            config_data[section_name]['enabled'] = str(checkbox.active)
 
         # Сохранение конфигурации
         if self.config_manager.write_config(config_data):
@@ -1029,7 +1006,7 @@ class ConfigApp(App):
         config_file = 'backup_config.ini'  # Имя файла конфигурации
         self.config_manager = ConfigManager(config_file)
         self.root_widget = ConfigEditorScreen()
-        self.root_widget.set_config_manager(self.config_manager) # Передаем менеджер конфигурации в экран
+        self.root_widget.set_config_manager(self.config_manager)  # Передаем менеджер конфигурации в экран
         return self.root_widget
 #
 # if __name__ == '__main__':

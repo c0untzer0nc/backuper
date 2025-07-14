@@ -1,5 +1,5 @@
 import os
-import sys
+#import sys
 import logging
 
 # --- НАСТРОЙКА ЛОГИРОВАНИЯ ---
@@ -20,7 +20,8 @@ def main():
     """
     Основная логика запуска приложения.
     """
-    script_dir = os.path.dirname(os.path.abspath(__file__))
+    #script_dir = os.path.dirname(os.path.abspath(__file__))
+    script_dir = ".\\"
     config_path = os.path.join(script_dir, CONFIG_FILE)
 
     logging.info(f"Проверка наличия файла конфигурации: {config_path}")
