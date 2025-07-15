@@ -62,15 +62,15 @@ DEFAULT_POSTGRESQL_USER = 'postgres'
 DEFAULT_POSTGRESQL_PASS = 'your_pg_password'
 DEFAULT_POSTGRESQL_DUMP_PATH = 'pg_dump'  # Default path for pg_dump
 
-DEFAULT_ZIP_PASSWORD = 'MyComplexBackupPassword2025'
+DEFAULT_ZIP_PASSWORD = '1'
 
 # НОВАЯ НАСТРОЙКА: Количество хранимых бэкапов для ротации
 DEFAULT_ROTATION_KEEP_COUNT = 7
 
 # Директория для временных файлов бэкапов перед сжатием
-TEMP_SQL_BACKUP_DIR = Path('C:\\TempSQLBackups')
+TEMP_SQL_BACKUP_DIR = Path(os.getcwd() + '\\' + 'TempSQLBackups')
 # Директория для временных сжатых архивов перед загрузкой в хранилище
-TEMP_COMPRESSED_DIR = Path('C:\\temp_backups')
+TEMP_COMPRESSED_DIR = Path(os.getcwd() + '\\' + 'temp_backups')
 
 
 # --- КЛАССЫ ХРАНИЛИЩ (Storages) ---
