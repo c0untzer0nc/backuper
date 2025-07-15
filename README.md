@@ -51,10 +51,13 @@
 
 Для запуска приложения просто выполните скрипт `init.pyw или init_tk.pyw`:
 
-bash
+'''bash
 python init.py
+'''
 или
+'''
 python init_tk.pyw
+'''
 
 ### Начальная Конфигурация
 
