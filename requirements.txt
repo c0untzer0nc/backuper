@@ -1,0 +1,10 @@
+configparser
+pyzipper
+datetime
+pyzipper
+webdav4
+pyodbc
+logging
+pathlib
+cryptography
+kivy
